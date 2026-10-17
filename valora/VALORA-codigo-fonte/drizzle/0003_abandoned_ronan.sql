@@ -1,0 +1,1 @@
+ALTER TABLE `client_records` ADD `product_class` varchar(40);

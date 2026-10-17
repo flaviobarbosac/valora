@@ -1,0 +1,507 @@
+{
+    "version":  "5",
+    "dialect":  "mysql",
+    "id":  "b07a30d0-8111-4f60-ac69-207ae0715e05",
+    "prevId":  "6eaf1352-264e-46ab-aeb2-4e1c2c704025",
+    "tables":  {
+                   "client_records":  {
+                                          "name":  "client_records",
+                                          "columns":  {
+                                                          "id":  {
+                                                                     "name":  "id",
+                                                                     "type":  "int",
+                                                                     "primaryKey":  false,
+                                                                     "notNull":  true,
+                                                                     "autoincrement":  true
+                                                                 },
+                                                          "owner_open_id":  {
+                                                                                "name":  "owner_open_id",
+                                                                                "type":  "varchar(64)",
+                                                                                "primaryKey":  false,
+                                                                                "notNull":  true,
+                                                                                "autoincrement":  false
+                                                                            },
+                                                          "reference":  {
+                                                                            "name":  "reference",
+                                                                            "type":  "varchar(24)",
+                                                                            "primaryKey":  false,
+                                                                            "notNull":  true,
+                                                                            "autoincrement":  false
+                                                                        },
+                                                          "name":  {
+                                                                       "name":  "name",
+                                                                       "type":  "varchar(160)",
+                                                                       "primaryKey":  false,
+                                                                       "notNull":  true,
+                                                                       "autoincrement":  false
+                                                                   },
+                                                          "contact":  {
+                                                                          "name":  "contact",
+                                                                          "type":  "varchar(100)",
+                                                                          "primaryKey":  false,
+                                                                          "notNull":  false,
+                                                                          "autoincrement":  false
+                                                                      },
+                                                          "contact_date":  {
+                                                                               "name":  "contact_date",
+                                                                               "type":  "date",
+                                                                               "primaryKey":  false,
+                                                                               "notNull":  true,
+                                                                               "autoincrement":  false
+                                                                           },
+                                                          "has_credit_limit":  {
+                                                                                   "name":  "has_credit_limit",
+                                                                                   "type":  "enum(\u0027yes\u0027,\u0027no\u0027,\u0027unknown\u0027)",
+                                                                                   "primaryKey":  false,
+                                                                                   "notNull":  true,
+                                                                                   "autoincrement":  false,
+                                                                                   "default":  "\u0027unknown\u0027"
+                                                                               },
+                                                          "sale_status":  {
+                                                                              "name":  "sale_status",
+                                                                              "type":  "enum(\u0027sold\u0027,\u0027not_sold\u0027,\u0027pending\u0027)",
+                                                                              "primaryKey":  false,
+                                                                              "notNull":  true,
+                                                                              "autoincrement":  false,
+                                                                              "default":  "\u0027pending\u0027"
+                                                                          },
+                                                          "last_product_sold":  {
+                                                                                    "name":  "last_product_sold",
+                                                                                    "type":  "varchar(160)",
+                                                                                    "primaryKey":  false,
+                                                                                    "notNull":  false,
+                                                                                    "autoincrement":  false
+                                                                                },
+                                                          "product_class":  {
+                                                                                "name":  "product_class",
+                                                                                "type":  "varchar(40)",
+                                                                                "primaryKey":  false,
+                                                                                "notNull":  false,
+                                                                                "autoincrement":  false
+                                                                            },
+                                                          "is_bank_customer":  {
+                                                                                   "name":  "is_bank_customer",
+                                                                                   "type":  "enum(\u0027yes\u0027,\u0027no\u0027,\u0027unknown\u0027)",
+                                                                                   "primaryKey":  false,
+                                                                                   "notNull":  true,
+                                                                                   "autoincrement":  false,
+                                                                                   "default":  "\u0027unknown\u0027"
+                                                                               },
+                                                          "objection":  {
+                                                                            "name":  "objection",
+                                                                            "type":  "enum(\u0027no_limit\u0027,\u0027rate\u0027,\u0027installment\u0027,\u0027thinking\u0027,\u0027no_interest\u0027,\u0027documents\u0027,\u0027later\u0027,\u0027unreachable\u0027,\u0027other\u0027)",
+                                                                            "primaryKey":  false,
+                                                                            "notNull":  false,
+                                                                            "autoincrement":  false
+                                                                        },
+                                                          "objection_notes":  {
+                                                                                  "name":  "objection_notes",
+                                                                                  "type":  "text",
+                                                                                  "primaryKey":  false,
+                                                                                  "notNull":  false,
+                                                                                  "autoincrement":  false
+                                                                              },
+                                                          "interested_without_limit":  {
+                                                                                           "name":  "interested_without_limit",
+                                                                                           "type":  "boolean",
+                                                                                           "primaryKey":  false,
+                                                                                           "notNull":  true,
+                                                                                           "autoincrement":  false,
+                                                                                           "default":  false
+                                                                                       },
+                                                          "stage":  {
+                                                                        "name":  "stage",
+                                                                        "type":  "enum(\u0027new\u0027,\u0027contacted\u0027,\u0027negotiation\u0027,\u0027awaiting_limit\u0027,\u0027sold\u0027,\u0027lost\u0027)",
+                                                                        "primaryKey":  false,
+                                                                        "notNull":  true,
+                                                                        "autoincrement":  false,
+                                                                        "default":  "\u0027new\u0027"
+                                                                    },
+                                                          "follow_up_date":  {
+                                                                                 "name":  "follow_up_date",
+                                                                                 "type":  "date",
+                                                                                 "primaryKey":  false,
+                                                                                 "notNull":  false,
+                                                                                 "autoincrement":  false
+                                                                             },
+                                                          "created_at":  {
+                                                                             "name":  "created_at",
+                                                                             "type":  "timestamp",
+                                                                             "primaryKey":  false,
+                                                                             "notNull":  true,
+                                                                             "autoincrement":  false,
+                                                                             "default":  "(now())"
+                                                                         },
+                                                          "updated_at":  {
+                                                                             "name":  "updated_at",
+                                                                             "type":  "timestamp",
+                                                                             "primaryKey":  false,
+                                                                             "notNull":  true,
+                                                                             "autoincrement":  false,
+                                                                             "onUpdate":  true,
+                                                                             "default":  "(now())"
+                                                                         }
+                                                      },
+                                          "indexes":  {
+                                                          "client_records_owner_contact_date_idx":  {
+                                                                                                        "name":  "client_records_owner_contact_date_idx",
+                                                                                                        "columns":  [
+                                                                                                                        "owner_open_id",
+                                                                                                                        "contact_date"
+                                                                                                                    ],
+                                                                                                        "isUnique":  false
+                                                                                                    },
+                                                          "client_records_owner_stage_idx":  {
+                                                                                                 "name":  "client_records_owner_stage_idx",
+                                                                                                 "columns":  [
+                                                                                                                 "owner_open_id",
+                                                                                                                 "stage"
+                                                                                                             ],
+                                                                                                 "isUnique":  false
+                                                                                             },
+                                                          "client_records_reference_unique_idx":  {
+                                                                                                      "name":  "client_records_reference_unique_idx",
+                                                                                                      "columns":  [
+                                                                                                                      "reference"
+                                                                                                                  ],
+                                                                                                      "isUnique":  true
+                                                                                                  }
+                                                      },
+                                          "foreignKeys":  {
+
+                                                          },
+                                          "compositePrimaryKeys":  {
+                                                                       "client_records_id":  {
+                                                                                                 "name":  "client_records_id",
+                                                                                                 "columns":  [
+                                                                                                                 "id"
+                                                                                                             ]
+                                                                                             }
+                                                                   },
+                                          "uniqueConstraints":  {
+
+                                                                },
+                                          "checkConstraint":  {
+
+                                                              }
+                                      },
+                   "user_goals":  {
+                                      "name":  "user_goals",
+                                      "columns":  {
+                                                      "id":  {
+                                                                 "name":  "id",
+                                                                 "type":  "int",
+                                                                 "primaryKey":  false,
+                                                                 "notNull":  true,
+                                                                 "autoincrement":  true
+                                                             },
+                                                      "owner_open_id":  {
+                                                                            "name":  "owner_open_id",
+                                                                            "type":  "varchar(64)",
+                                                                            "primaryKey":  false,
+                                                                            "notNull":  true,
+                                                                            "autoincrement":  false
+                                                                        },
+                                                      "monthly_contact_target":  {
+                                                                                     "name":  "monthly_contact_target",
+                                                                                     "type":  "int",
+                                                                                     "primaryKey":  false,
+                                                                                     "notNull":  true,
+                                                                                     "autoincrement":  false,
+                                                                                     "default":  100
+                                                                                 },
+                                                      "monthly_sale_target":  {
+                                                                                  "name":  "monthly_sale_target",
+                                                                                  "type":  "int",
+                                                                                  "primaryKey":  false,
+                                                                                  "notNull":  true,
+                                                                                  "autoincrement":  false,
+                                                                                  "default":  20
+                                                                              },
+                                                      "created_at":  {
+                                                                         "name":  "created_at",
+                                                                         "type":  "timestamp",
+                                                                         "primaryKey":  false,
+                                                                         "notNull":  true,
+                                                                         "autoincrement":  false,
+                                                                         "default":  "(now())"
+                                                                     },
+                                                      "updated_at":  {
+                                                                         "name":  "updated_at",
+                                                                         "type":  "timestamp",
+                                                                         "primaryKey":  false,
+                                                                         "notNull":  true,
+                                                                         "autoincrement":  false,
+                                                                         "onUpdate":  true,
+                                                                         "default":  "(now())"
+                                                                     }
+                                                  },
+                                      "indexes":  {
+                                                      "user_goals_owner_unique_idx":  {
+                                                                                          "name":  "user_goals_owner_unique_idx",
+                                                                                          "columns":  [
+                                                                                                          "owner_open_id"
+                                                                                                      ],
+                                                                                          "isUnique":  true
+                                                                                      }
+                                                  },
+                                      "foreignKeys":  {
+
+                                                      },
+                                      "compositePrimaryKeys":  {
+                                                                   "user_goals_id":  {
+                                                                                         "name":  "user_goals_id",
+                                                                                         "columns":  [
+                                                                                                         "id"
+                                                                                                     ]
+                                                                                     }
+                                                               },
+                                      "uniqueConstraints":  {
+
+                                                            },
+                                      "checkConstraint":  {
+
+                                                          }
+                                  },
+                   "user_profiles":  {
+                                         "name":  "user_profiles",
+                                         "columns":  {
+                                                         "id":  {
+                                                                    "name":  "id",
+                                                                    "type":  "int",
+                                                                    "primaryKey":  false,
+                                                                    "notNull":  true,
+                                                                    "autoincrement":  true
+                                                                },
+                                                         "owner_open_id":  {
+                                                                               "name":  "owner_open_id",
+                                                                               "type":  "varchar(64)",
+                                                                               "primaryKey":  false,
+                                                                               "notNull":  true,
+                                                                               "autoincrement":  false
+                                                                           },
+                                                         "display_name":  {
+                                                                              "name":  "display_name",
+                                                                              "type":  "varchar(100)",
+                                                                              "primaryKey":  false,
+                                                                              "notNull":  true,
+                                                                              "autoincrement":  false
+                                                                          },
+                                                         "job_title":  {
+                                                                           "name":  "job_title",
+                                                                           "type":  "varchar(100)",
+                                                                           "primaryKey":  false,
+                                                                           "notNull":  true,
+                                                                           "autoincrement":  false,
+                                                                           "default":  "\u0027\u0027"
+                                                                       },
+                                                         "avatar_data_url":  {
+                                                                                 "name":  "avatar_data_url",
+                                                                                 "type":  "mediumtext",
+                                                                                 "primaryKey":  false,
+                                                                                 "notNull":  false,
+                                                                                 "autoincrement":  false
+                                                                             },
+                                                         "created_at":  {
+                                                                            "name":  "created_at",
+                                                                            "type":  "timestamp",
+                                                                            "primaryKey":  false,
+                                                                            "notNull":  true,
+                                                                            "autoincrement":  false,
+                                                                            "default":  "(now())"
+                                                                        },
+                                                         "updated_at":  {
+                                                                            "name":  "updated_at",
+                                                                            "type":  "timestamp",
+                                                                            "primaryKey":  false,
+                                                                            "notNull":  true,
+                                                                            "autoincrement":  false,
+                                                                            "onUpdate":  true,
+                                                                            "default":  "(now())"
+                                                                        }
+                                                     },
+                                         "indexes":  {
+                                                         "user_profiles_owner_unique_idx":  {
+                                                                                                "name":  "user_profiles_owner_unique_idx",
+                                                                                                "columns":  [
+                                                                                                                "owner_open_id"
+                                                                                                            ],
+                                                                                                "isUnique":  true
+                                                                                            }
+                                                     },
+                                         "foreignKeys":  {
+
+                                                         },
+                                         "compositePrimaryKeys":  {
+                                                                      "user_profiles_id":  {
+                                                                                               "name":  "user_profiles_id",
+                                                                                               "columns":  [
+                                                                                                               "id"
+                                                                                                           ]
+                                                                                           }
+                                                                  },
+                                         "uniqueConstraints":  {
+
+                                                               },
+                                         "checkConstraint":  {
+
+                                                             }
+                                     },
+                   "users":  {
+                                 "name":  "users",
+                                 "columns":  {
+                                                 "id":  {
+                                                            "name":  "id",
+                                                            "type":  "int",
+                                                            "primaryKey":  false,
+                                                            "notNull":  true,
+                                                            "autoincrement":  true
+                                                        },
+                                                 "openId":  {
+                                                                "name":  "openId",
+                                                                "type":  "varchar(64)",
+                                                                "primaryKey":  false,
+                                                                "notNull":  true,
+                                                                "autoincrement":  false
+                                                            },
+                                                 "name":  {
+                                                              "name":  "name",
+                                                              "type":  "text",
+                                                              "primaryKey":  false,
+                                                              "notNull":  false,
+                                                              "autoincrement":  false
+                                                          },
+                                                 "email":  {
+                                                               "name":  "email",
+                                                               "type":  "varchar(320)",
+                                                               "primaryKey":  false,
+                                                               "notNull":  false,
+                                                               "autoincrement":  false
+                                                           },
+                                                 "loginMethod":  {
+                                                                     "name":  "loginMethod",
+                                                                     "type":  "varchar(64)",
+                                                                     "primaryKey":  false,
+                                                                     "notNull":  false,
+                                                                     "autoincrement":  false
+                                                                 },
+                                                 "role":  {
+                                                              "name":  "role",
+                                                              "type":  "enum(\u0027user\u0027,\u0027admin\u0027)",
+                                                              "primaryKey":  false,
+                                                              "notNull":  true,
+                                                              "autoincrement":  false,
+                                                              "default":  "\u0027user\u0027"
+                                                          },
+                                                 "bankId":  {
+                                                                "name":  "bankId",
+                                                                "type":  "varchar(20)",
+                                                                "primaryKey":  false,
+                                                                "notNull":  false,
+                                                                "autoincrement":  false
+                                                            },
+                                                 "username":  {
+                                                                  "name":  "username",
+                                                                  "type":  "varchar(64)",
+                                                                  "primaryKey":  false,
+                                                                  "notNull":  false,
+                                                                  "autoincrement":  false
+                                                              },
+                                                 "passwordHash":  {
+                                                                      "name":  "passwordHash",
+                                                                      "type":  "varchar(255)",
+                                                                      "primaryKey":  false,
+                                                                      "notNull":  false,
+                                                                      "autoincrement":  false
+                                                                  },
+                                                 "isActive":  {
+                                                                  "name":  "isActive",
+                                                                  "type":  "boolean",
+                                                                  "primaryKey":  false,
+                                                                  "notNull":  true,
+                                                                  "autoincrement":  false,
+                                                                  "default":  true
+                                                              },
+                                                 "createdAt":  {
+                                                                   "name":  "createdAt",
+                                                                   "type":  "timestamp",
+                                                                   "primaryKey":  false,
+                                                                   "notNull":  true,
+                                                                   "autoincrement":  false,
+                                                                   "default":  "(now())"
+                                                               },
+                                                 "updatedAt":  {
+                                                                   "name":  "updatedAt",
+                                                                   "type":  "timestamp",
+                                                                   "primaryKey":  false,
+                                                                   "notNull":  true,
+                                                                   "autoincrement":  false,
+                                                                   "onUpdate":  true,
+                                                                   "default":  "(now())"
+                                                               },
+                                                 "lastSignedIn":  {
+                                                                      "name":  "lastSignedIn",
+                                                                      "type":  "timestamp",
+                                                                      "primaryKey":  false,
+                                                                      "notNull":  true,
+                                                                      "autoincrement":  false,
+                                                                      "default":  "(now())"
+                                                                  }
+                                             },
+                                 "indexes":  {
+                                                 "users_bank_username_unique_idx":  {
+                                                                                        "name":  "users_bank_username_unique_idx",
+                                                                                        "columns":  [
+                                                                                                        "bankId",
+                                                                                                        "username"
+                                                                                                    ],
+                                                                                        "isUnique":  true
+                                                                                    }
+                                             },
+                                 "foreignKeys":  {
+
+                                                 },
+                                 "compositePrimaryKeys":  {
+                                                              "users_id":  {
+                                                                               "name":  "users_id",
+                                                                               "columns":  [
+                                                                                               "id"
+                                                                                           ]
+                                                                           }
+                                                          },
+                                 "uniqueConstraints":  {
+                                                           "users_openId_unique":  {
+                                                                                       "name":  "users_openId_unique",
+                                                                                       "columns":  [
+                                                                                                       "openId"
+                                                                                                   ]
+                                                                                   }
+                                                       },
+                                 "checkConstraint":  {
+
+                                                     }
+                             }
+               },
+    "views":  {
+
+              },
+    "_meta":  {
+                  "schemas":  {
+
+                              },
+                  "tables":  {
+
+                             },
+                  "columns":  {
+
+                              }
+              },
+    "internal":  {
+                     "tables":  {
+
+                                },
+                     "indexes":  {
+
+                                 }
+                 }
+}

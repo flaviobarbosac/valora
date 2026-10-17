@@ -1,0 +1,22 @@
+# Senhas e dados locais: nunca vão para o repositório (ele é público).
+.env
+.env.*
+!.env.example
+conta-teste.txt
+super-admin.txt
+contas-demo.txt
+
+# Banco de dados MariaDB local (dados reais de clientes)
+banco-dados/
+
+# Programas baixados (cloudflared.exe etc.): baixe de novo pela fonte oficial
+ferramentas/
+
+# Pacotes gerados a partir do código
+*.zip
+
+# Dependências e builds
+node_modules/
+dist/
+.vite/
+*.log

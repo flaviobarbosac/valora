@@ -1,0 +1,1 @@
+ALTER TABLE `client_records` MODIFY COLUMN `stage` enum('new','contacted','negotiation','awaiting_limit','technical','sold','lost') NOT NULL DEFAULT 'new';

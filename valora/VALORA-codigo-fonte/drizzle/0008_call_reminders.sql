@@ -1,0 +1,1 @@
+ALTER TABLE `client_records` ADD `remind_after` date;
