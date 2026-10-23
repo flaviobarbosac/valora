@@ -39,6 +39,7 @@ const db = vi.hoisted(() => ({
   countEmailCodeAttempt: vi.fn(),
   markEmailVerified: vi.fn(),
   touchUserSignIn: vi.fn(),
+  setUserPassword: vi.fn(),
 }));
 const mail = vi.hoisted(() => ({ isMailConfigured: vi.fn(() => false), sendInviteEmail: vi.fn(async () => false), sendVerificationEmail: vi.fn(async (_message: { code: string }) => true) }));
 
@@ -294,6 +295,53 @@ describe("sign-up", () => {
     org.getInvitationByTokenHash.mockResolvedValue(validInvite());
     await expect(callerFor(null).auth.signup({ ...form, email: "outro@x.com", inviteToken: "token-valido-123" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
     expect(db.createUser).not.toHaveBeenCalled();
+  });
+});
+
+describe("esqueci minha senha", () => {
+  const account = (overrides: Partial<User> = {}) => user({ openId: "ana-1", email: "ana@banco.com", ...overrides });
+  const codeSent = () => {
+    const [, codeHash, expiresAt] = db.setEmailCode.mock.calls.at(-1)!;
+    return { code: mail.sendVerificationEmail.mock.calls.at(-1)![0].code, stored: account({ emailCodeHash: codeHash, emailCodeExpiresAt: expiresAt }) };
+  };
+
+  it("e-mails a reset code, with the same answer for unknown e-mails", async () => {
+    org.getUserByEmail.mockResolvedValueOnce(undefined);
+    await expect(callerFor(null).auth.requestPasswordReset({ email: "ninguem@x.com" })).resolves.toEqual({ mailConfigured: false });
+    expect(mail.sendVerificationEmail).not.toHaveBeenCalled();
+
+    org.getUserByEmail.mockResolvedValueOnce(account());
+    await expect(callerFor(null).auth.requestPasswordReset({ email: " Ana@Banco.com " })).resolves.toEqual({ mailConfigured: false });
+    expect(mail.sendVerificationEmail).toHaveBeenCalledWith(expect.objectContaining({ to: "ana@banco.com", purpose: "reset", code: expect.stringMatching(/^\d{6}$/) }));
+  });
+
+  it("changes the password and signs in only with the right reset code", async () => {
+    org.getUserByEmail.mockResolvedValueOnce(account());
+    await callerFor(null).auth.requestPasswordReset({ email: "ana@banco.com" });
+    const { code, stored } = codeSent();
+
+    org.getUserByEmail.mockResolvedValueOnce(stored);
+    await expect(callerFor(null).auth.resetPassword({ email: "ana@banco.com", code: code === "000000" ? "111111" : "000000", newPassword: "NovaSenha123" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(db.countEmailCodeAttempt).toHaveBeenCalledWith("ana-1", 1);
+    await expect(callerFor(null).auth.resetPassword({ email: "ana@banco.com", code, newPassword: "fraca" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(db.setUserPassword).not.toHaveBeenCalled();
+
+    org.getUserByEmail.mockResolvedValueOnce(stored);
+    const cookie = vi.fn();
+    const caller = appRouter.createCaller({ req: { ip: "10.0.0.9", secure: false, headers: {} } as never, res: { cookie, clearCookie: vi.fn() } as never, user: null });
+    await expect(caller.auth.resetPassword({ email: "ana@banco.com", code, newPassword: "NovaSenha123" })).resolves.toMatchObject({ email: "ana@banco.com" });
+    expect(db.setUserPassword).toHaveBeenCalledWith("ana-1", expect.stringMatching(/^scrypt\$/));
+    expect(db.markEmailVerified).toHaveBeenCalledWith("ana-1");
+    expect(cookie).toHaveBeenCalledTimes(1);
+  });
+
+  it("a sign-up code cannot be used to reset the password", async () => {
+    org.getUserByEmail.mockResolvedValueOnce(undefined).mockResolvedValueOnce(account({ emailVerifiedAt: null }));
+    await callerFor(null).auth.signup({ name: "Ana", email: "ana@banco.com", password: "Senha1234" });
+    const { code, stored } = codeSent();
+    org.getUserByEmail.mockResolvedValueOnce(stored);
+    await expect(callerFor(null).auth.resetPassword({ email: "ana@banco.com", code, newPassword: "NovaSenha123" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(db.setUserPassword).not.toHaveBeenCalled();
   });
 });
 

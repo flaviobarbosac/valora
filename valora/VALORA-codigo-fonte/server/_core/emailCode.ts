@@ -10,14 +10,21 @@ export const EMAIL_CODE_RESEND_SECONDS = 60;
 
 export const newEmailCode = () => String(randomInt(0, 1_000_000)).padStart(6, "0");
 
+/**
+ * What a code is for. The purpose is part of the hash, so a sign-up code can
+ * never be used to reset a password (and the other way around).
+ */
+export type EmailCodePurpose = "verify" | "reset";
+
 /** Keyed hash, so a leaked database row does not reveal a usable code. */
-export function hashEmailCode(openId: string, code: string) {
-  return createHmac("sha256", ENV.sessionSecret || "valora-email-code").update(`${openId}:${code}`).digest("hex");
+export function hashEmailCode(openId: string, code: string, purpose: EmailCodePurpose = "verify") {
+  const subject = purpose === "verify" ? `${openId}:${code}` : `${purpose}:${openId}:${code}`;
+  return createHmac("sha256", ENV.sessionSecret || "valora-email-code").update(subject).digest("hex");
 }
 
-export function emailCodeMatches(openId: string, code: string, storedHash: string | null) {
+export function emailCodeMatches(openId: string, code: string, storedHash: string | null, purpose: EmailCodePurpose = "verify") {
   if (!storedHash) return false;
-  const given = Buffer.from(hashEmailCode(openId, code), "hex");
+  const given = Buffer.from(hashEmailCode(openId, code, purpose), "hex");
   const stored = Buffer.from(storedHash, "hex");
   return given.length === stored.length && timingSafeEqual(given, stored);
 }

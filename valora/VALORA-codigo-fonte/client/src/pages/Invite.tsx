@@ -4,6 +4,7 @@ import { Link, useLocation, useParams } from "wouter";
 import { toast } from "sonner";
 import { COMPANY_ROLE_LABELS, COMPANY_ROLE_SCOPE } from "@shared/const";
 import AuthLayout from "@/components/AuthLayout";
+import ForgotPassword from "@/components/ForgotPassword";
 import { LoginForm } from "@/components/LoginScreen";
 import SignupForm from "@/components/SignupForm";
 import { trpc } from "@/lib/trpc";
@@ -16,7 +17,7 @@ export default function Invite() {
   const utils = trpc.useUtils();
   const preview = trpc.organization.previewInvite.useQuery({ token }, { retry: false, enabled: token.length >= 10 });
   const accept = trpc.organization.acceptInvite.useMutation();
-  const [mode, setMode] = useState<"signup" | "login">("signup");
+  const [mode, setMode] = useState<"signup" | "login" | "forgot">("signup");
   const [error, setError] = useState("");
 
   const finish = () => {
@@ -83,11 +84,13 @@ export default function Invite() {
         <>
           <div className="auth-tabs" role="tablist">
             <button type="button" role="tab" aria-selected={mode === "signup"} className={mode === "signup" ? "active" : ""} onClick={() => setMode("signup")}>Criar conta</button>
-            <button type="button" role="tab" aria-selected={mode === "login"} className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>Já tenho conta</button>
+            <button type="button" role="tab" aria-selected={mode !== "signup"} className={mode !== "signup" ? "active" : ""} onClick={() => setMode("login")}>Já tenho conta</button>
           </div>
           {mode === "signup"
             ? <SignupForm inviteToken={token} lockedEmail={data.email} submitLabel="Criar conta e aceitar" onDone={finish} />
-            : <><p className="login-subtitle">Entre e depois confirme o convite.</p><LoginForm onLogin={auth.login} loggingIn={auth.loggingIn} submitLabel="Entrar" defaultEmail={data.email} /></>}
+            : mode === "forgot"
+              ? <ForgotPassword defaultEmail={data.email} onBack={() => setMode("login")} />
+              : <><p className="login-subtitle">Entre e depois confirme o convite.</p><LoginForm onLogin={auth.login} loggingIn={auth.loggingIn} submitLabel="Entrar" defaultEmail={data.email} onForgotPassword={() => setMode("forgot")} /></>}
         </>
       )}
     </AuthLayout>

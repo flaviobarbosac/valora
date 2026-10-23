@@ -20,6 +20,7 @@ O produto registra informações inseridas pelo atendente. **Não consulta burea
 - A mensagem de erro de login é a mesma para e-mail inexistente e senha incorreta. Após 5 falhas seguidas, a conta fica bloqueada por 15 minutos.
 - Senhas têm no mínimo 8 caracteres, com letras e números, e são armazenadas com hash scrypt.
 - A sessão expira após 12 horas (configurável) e é encerrada em todos os aparelhos quando a senha muda.
+- **Recuperação de senha:** em "Esqueci minha senha", a pessoa recebe no e-mail um código de 6 dígitos (15 minutos, 5 tentativas, limite de 5 pedidos por hora por e-mail) e define uma nova senha, que segue a mesma política. A troca também confirma o e-mail, encerra as outras sessões e já entra no app. O pedido responde igual para e-mails inexistentes. O código guarda a finalidade no hash, então um código de cadastro não troca senha.
 - Os dados de clientes, metas e perfil são associados ao identificador interno do usuário autenticado.
 - Alterações de atendimentos são restritas ao proprietário do registro. A leitura segue a hierarquia da empresa (RF-10). O navegador não escolhe nem envia o identificador de proprietário.
 - A aplicação disponibiliza encerramento da sessão.

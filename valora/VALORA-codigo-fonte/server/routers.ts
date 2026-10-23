@@ -27,7 +27,7 @@ import { checkInviteToken, joinWithInvite, organizationRouter, superAdminRouter 
 import { featuresRouter } from "./featuresRouter";
 import { latestRatings, noteCounts } from "./featuresDb";
 import { getSessionCookieOptions } from "./_core/cookies";
-import { EMAIL_CODE_MAX_ATTEMPTS, EMAIL_CODE_VALID_MINUTES, emailCodeExpiry, emailCodeMatches, emailCodeRecentlySent, hashEmailCode, newEmailCode } from "./_core/emailCode";
+import { EMAIL_CODE_MAX_ATTEMPTS, EMAIL_CODE_VALID_MINUTES, emailCodeExpiry, emailCodeMatches, emailCodeRecentlySent, hashEmailCode, newEmailCode, type EmailCodePurpose } from "./_core/emailCode";
 import { isMailConfigured, sendVerificationEmail } from "./_core/mailer";
 import { isValidImageDataUrl } from "./_core/images";
 import { clearLoginFailures, consumeRateLimit, loginRetryAfterSeconds, recordLoginFailure } from "./_core/loginRateLimit";
@@ -67,16 +67,37 @@ async function setSessionCookie(ctx: TrpcContext, user: User) {
 }
 
 /**
- * Sends a fresh 6-digit code to the account's e-mail, unless one went out
- * less than a minute ago (that one is still valid).
+ * Sends a fresh 6-digit code to the account's e-mail. A sign-up code is not
+ * re-sent within a minute (the last one is still valid); password-reset
+ * requests are limited per e-mail instead, since the last code may have been
+ * a sign-up one.
  */
-async function sendEmailCode(user: User) {
-  if (emailCodeRecentlySent(user.emailCodeExpiresAt)) return { emailSent: isMailConfigured(), mailConfigured: isMailConfigured() };
+async function sendEmailCode(user: User, purpose: EmailCodePurpose = "verify") {
+  if (purpose === "verify" && emailCodeRecentlySent(user.emailCodeExpiresAt)) return { emailSent: isMailConfigured(), mailConfigured: isMailConfigured() };
   const code = newEmailCode();
-  await setEmailCode(user.openId, hashEmailCode(user.openId, code), emailCodeExpiry());
-  const emailSent = await sendVerificationEmail({ to: user.email ?? "", name: user.name ?? "", code, validMinutes: EMAIL_CODE_VALID_MINUTES });
+  await setEmailCode(user.openId, hashEmailCode(user.openId, code, purpose), emailCodeExpiry());
+  const emailSent = await sendVerificationEmail({ to: user.email ?? "", name: user.name ?? "", code, validMinutes: EMAIL_CODE_VALID_MINUTES, purpose });
   return { emailSent, mailConfigured: isMailConfigured() };
 }
+
+const WRONG_CODE_MSG = "Código incorreto ou vencido. Confira o e-mail ou peça um novo código.";
+
+/** Checks a pending e-mail code, counting wrong guesses. Throws the same message for every failure. */
+async function requireEmailCode(user: User | undefined, code: string, purpose: EmailCodePurpose): Promise<User> {
+  const wrong = () => new TRPCError({ code: "BAD_REQUEST", message: WRONG_CODE_MSG });
+  if (!user || !user.isActive) throw wrong();
+  if (!user.emailCodeExpiresAt || user.emailCodeExpiresAt.getTime() < Date.now()) throw wrong();
+  if (user.emailCodeAttempts >= EMAIL_CODE_MAX_ATTEMPTS) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Muitos códigos errados. Peça um novo código." });
+  }
+  if (!emailCodeMatches(user.openId, code, user.emailCodeHash, purpose)) {
+    await countEmailCodeAttempt(user.openId, user.emailCodeAttempts + 1);
+    throw wrong();
+  }
+  return user;
+}
+
+const codeInput = z.string().trim().regex(/^\d{6}$/, "Digite os 6 números do código.");
 
 const verificationNeeded = (email: string, delivery: { emailSent: boolean; mailConfigured: boolean }) =>
   ({ status: "verify_email" as const, email, ...delivery });
@@ -237,23 +258,14 @@ export const appRouter = router({
       return { status: "signed_in" as const, user: { ...publicUser(user), viewedBy: null } };
     }),
     // Step two of a sign-up: the 6-digit code from the e-mail. Success signs the person in.
-    verifyEmail: publicProcedure.input(z.object({ email: z.string().max(320), code: z.string().trim().regex(/^\d{6}$/, "Digite os 6 números do código.") })).mutation(async ({ ctx, input }) => {
+    verifyEmail: publicProcedure.input(z.object({ email: z.string().max(320), code: codeInput })).mutation(async ({ ctx, input }) => {
       const ip = ctx.req.ip ?? "unknown";
       if (!consumeRateLimit(`verify:${ip}`, 30, 15 * 60 * 1000)) {
         throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos e tente de novo." });
       }
-      const wrong = () => new TRPCError({ code: "BAD_REQUEST", message: "Código incorreto ou vencido. Confira o e-mail ou peça um novo código." });
-      const user = await org.getUserByEmail(normalizeEmail(input.email));
-      if (!user || !user.isActive) throw wrong();
-      if (user.emailVerifiedAt) throw new TRPCError({ code: "BAD_REQUEST", message: "Este e-mail já foi confirmado. Entre com sua senha." });
-      if (!user.emailCodeExpiresAt || user.emailCodeExpiresAt.getTime() < Date.now()) throw wrong();
-      if (user.emailCodeAttempts >= EMAIL_CODE_MAX_ATTEMPTS) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Muitos códigos errados. Peça um novo código." });
-      }
-      if (!emailCodeMatches(user.openId, input.code, user.emailCodeHash)) {
-        await countEmailCodeAttempt(user.openId, user.emailCodeAttempts + 1);
-        throw wrong();
-      }
+      const found = await org.getUserByEmail(normalizeEmail(input.email));
+      if (found?.isActive && found.emailVerifiedAt) throw new TRPCError({ code: "BAD_REQUEST", message: "Este e-mail já foi confirmado. Entre com sua senha." });
+      const user = await requireEmailCode(found, input.code, "verify");
       await markEmailVerified(user.openId);
       await touchUserSignIn(user.openId);
       await setSessionCookie(ctx, user);
@@ -268,6 +280,34 @@ export const appRouter = router({
       const user = email ? await org.getUserByEmail(email) : undefined;
       if (user && user.isActive && !user.emailVerifiedAt) await sendEmailCode(user);
       return { mailConfigured: isMailConfigured() };
+    }),
+    // "Esqueci minha senha", step one: a 6-digit code goes to the e-mail. Same answer whether or not the account exists.
+    requestPasswordReset: publicProcedure.input(z.object({ email: z.string().max(320) })).mutation(async ({ ctx, input }) => {
+      const email = normalizeEmail(input.email);
+      if (!consumeRateLimit(`reset:${ctx.req.ip ?? "unknown"}`, 10, 15 * 60 * 1000) || !consumeRateLimit(`reset:${email}`, 5, 60 * 60 * 1000)) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitos códigos pedidos. Aguarde alguns minutos." });
+      }
+      const user = email ? await org.getUserByEmail(email) : undefined;
+      if (user && user.isActive && user.passwordHash) await sendEmailCode(user, "reset");
+      return { mailConfigured: isMailConfigured() };
+    }),
+    // Step two: the code proves the e-mail, so it also confirms it. Other sessions end (the password hash changes).
+    resetPassword: publicProcedure.input(z.object({ email: z.string().max(320), code: codeInput, newPassword: z.string().max(PASSWORD_MAX_LENGTH) })).mutation(async ({ ctx, input }) => {
+      const ip = ctx.req.ip ?? "unknown";
+      if (!consumeRateLimit(`reset-code:${ip}`, 30, 15 * 60 * 1000)) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos e tente de novo." });
+      }
+      const policyError = passwordPolicyError(input.newPassword);
+      if (policyError) throw new TRPCError({ code: "BAD_REQUEST", message: policyError });
+      const email = normalizeEmail(input.email);
+      const user = await requireEmailCode(await org.getUserByEmail(email), input.code, "reset");
+      const passwordHash = await hashPassword(input.newPassword);
+      await setUserPassword(user.openId, passwordHash);
+      await markEmailVerified(user.openId);
+      clearLoginFailures(ip, email);
+      await touchUserSignIn(user.openId);
+      await setSessionCookie(ctx, { ...user, passwordHash });
+      return { ...publicUser(user), viewedBy: null };
     }),
     changePassword: protectedProcedure.input(changePasswordInput).mutation(async ({ ctx, input }) => {
       if (!(await verifyPassword(input.currentPassword, ctx.user.passwordHash))) {

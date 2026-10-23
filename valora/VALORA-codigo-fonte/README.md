@@ -56,6 +56,7 @@ Cada pessoa entra com **e-mail** e **senha**. O cadastro pede só nome, e-mail e
 - Após 5 senhas erradas seguidas, a conta fica bloqueada por 15 minutos.
 - O avatar no canto superior direito abre o **menu da conta**: Perfil e metas, Mudar senha, Sair da conta e Excluir conta.
 - Trocar a senha encerra as sessões abertas em outros aparelhos.
+- **Esqueci minha senha** (na tela de entrada e na de convite): a pessoa informa o e-mail e recebe um código de 6 dígitos (vale 15 minutos, até 5 tentativas). Com o código, ela cria uma senha nova e já entra. As sessões em outros aparelhos são encerradas. A resposta é a mesma para e-mails que não existem, e um código de cadastro não serve para trocar senha.
 - **Excluir conta** pede a senha e uma confirmação, e apaga de forma permanente o usuário, os atendimentos, as metas e o perfil dele.
 
 ## Empresas, equipes e perfis
