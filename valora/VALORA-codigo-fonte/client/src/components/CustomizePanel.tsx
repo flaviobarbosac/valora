@@ -3,7 +3,8 @@ import { Briefcase, ImagePlus, LoaderCircle, Palette, Pencil, Plus, RotateCcw, S
 import { toast } from "sonner";
 import { COMPANY_ROLE_LABELS, type CompanyRoleKey } from "@shared/const";
 import { useAppDialog } from "@/components/AppDialogs";
-import { PIPELINE_STAGES } from "@/lib/client-types";
+import { PrefsSettings, ProductsSettings } from "@/components/WorkspaceSettings";
+import { useWorkspace } from "@/lib/workspace";
 import { COLOR_PRESETS, DEFAULT_COLORS, applyBrandColors, roleLabel } from "@/lib/branding";
 import { trpc } from "@/lib/trpc";
 
@@ -32,7 +33,15 @@ async function prepareLogo(file: File): Promise<string> {
   }
 }
 
-export default function CustomizePanel() {
+/** People who work on their own customize only their pipelines and wording. */
+export function PersonalCustomizePanel() {
+  const { data } = useWorkspace();
+  if (!data) return <div className="loading-table"><LoaderCircle className="spin" size={20} />Carregando…</div>;
+  return <div className="team-page"><ProductsSettings data={data} agencies={[]} /><PrefsSettings prefs={data.prefs} /></div>;
+}
+
+export default function CustomizePanel({ agencies }: { agencies: { id: number; name: string }[] }) {
+  const workspace = useWorkspace();
   const utils = trpc.useUtils();
   const dialog = useAppDialog();
   const query = trpc.features.branding.useQuery(undefined, { retry: false });
@@ -46,7 +55,6 @@ export default function CustomizePanel() {
   const [colors, setColors] = useState({ primary: DEFAULT_COLORS.primary as string, dark: DEFAULT_COLORS.dark as string, accent: DEFAULT_COLORS.accent as string });
   const [logo, setLogo] = useState<string | null>(null);
   const [roleLabels, setRoleLabels] = useState<Record<string, string>>({});
-  const [stageLabels, setStageLabels] = useState<Record<string, string>>({});
   const [newPosition, setNewPosition] = useState({ name: "", level: "member" as CompanyRoleKey });
 
   useEffect(() => {
@@ -55,7 +63,6 @@ export default function CustomizePanel() {
     setColors({ primary: data.primaryColor ?? DEFAULT_COLORS.primary, dark: data.darkColor ?? DEFAULT_COLORS.dark, accent: data.accentColor ?? DEFAULT_COLORS.accent });
     setLogo(data.logoDataUrl);
     setRoleLabels(data.roleLabels);
-    setStageLabels(data.stageLabels);
   }, [data]);
 
   // Live preview while choosing colors; the saved colors come back when leaving the page.
@@ -81,7 +88,7 @@ export default function CustomizePanel() {
       await save.mutateAsync({
         displayName: displayName.trim() || null,
         primaryColor: colors.primary, darkColor: colors.dark, accentColor: colors.accent,
-        logoDataUrl: logo, roleLabels, stageLabels,
+        logoDataUrl: logo, roleLabels,
       });
       await utils.features.branding.invalidate();
       toast.success("Personalização salva. Todos da empresa já veem as mudanças.");
@@ -91,7 +98,7 @@ export default function CustomizePanel() {
   };
 
   const reset = () => {
-    setColors({ ...DEFAULT_COLORS }); setLogo(null); setDisplayName(""); setRoleLabels({}); setStageLabels({});
+    setColors({ ...DEFAULT_COLORS }); setLogo(null); setDisplayName(""); setRoleLabels({});
     toast.info("Valores padrão carregados. Clique em Salvar para aplicar.");
   };
 
@@ -118,7 +125,7 @@ export default function CustomizePanel() {
   return (
     <div className="team-page">
       <article className="panel team-panel">
-        <div className="team-panel-heading"><span className="team-icon"><Palette size={18} /></span><div><h2>Identidade da empresa</h2><p>Deixe o VALORA com a cara do seu banco. As mudanças valem para todas as pessoas da empresa.</p></div>
+        <div className="team-panel-heading"><span className="team-icon"><Palette size={18} /></span><div><h2>Identidade da empresa</h2><p>Deixe o VALORA com a cara da sua empresa. As mudanças valem para todas as pessoas da empresa.</p></div>
           <span className="team-company-actions"><button type="button" className="button button-ghost" onClick={reset}><RotateCcw size={14} />Padrão</button><button type="button" className="button button-primary" onClick={() => void submit()} disabled={save.isPending}><Save size={14} />{save.isPending ? "Salvando…" : "Salvar"}</button></span></div>
         <div className="customize-grid">
           <div className="customize-block">
@@ -150,23 +157,20 @@ export default function CustomizePanel() {
         </div>
       </article>
 
+      {workspace.data && <ProductsSettings data={workspace.data} agencies={agencies} />}
+      {workspace.data && <PrefsSettings prefs={workspace.data.prefs} />}
+
       <div className="team-grid">
         <article className="panel team-panel">
-          <div className="team-panel-heading"><span className="team-icon"><Tags size={18} /></span><div><h2>Nomes dos perfis</h2><p>Use os nomes do seu banco. As permissões continuam as mesmas.</p></div></div>
+          <div className="team-panel-heading"><span className="team-icon"><Tags size={18} /></span><div><h2>Nomes dos perfis</h2><p>Use os nomes da sua empresa. As permissões continuam as mesmas.</p></div></div>
           <div className="label-list">{ROLES.map((role) => (
             <label className="field" key={role}><span>{COMPANY_ROLE_LABELS[role]}</span><input maxLength={40} value={roleLabels[role] ?? ""} placeholder={COMPANY_ROLE_LABELS[role]} onChange={(event) => setRoleLabels((current) => ({ ...current, [role]: event.target.value }))} /></label>
-          ))}</div>
-        </article>
-        <article className="panel team-panel">
-          <div className="team-panel-heading"><span className="team-icon"><Tags size={18} /></span><div><h2>Nomes das etapas do pipeline</h2><p>Mude como as etapas aparecem para a sua empresa.</p></div></div>
-          <div className="label-list">{PIPELINE_STAGES.map((stage) => (
-            <label className="field" key={stage.value}><span>{stage.label}</span><input maxLength={40} value={stageLabels[stage.value] ?? ""} placeholder={stage.label} onChange={(event) => setStageLabels((current) => ({ ...current, [stage.value]: event.target.value }))} /></label>
           ))}</div>
         </article>
       </div>
 
       <article className="panel team-panel">
-        <div className="team-panel-heading"><span className="team-icon"><Briefcase size={18} /></span><div><h2>Cargos</h2><p>Crie os cargos do seu banco (ex.: Atendente, Consultor Sênior, Supervisor). Cada cargo tem um nível de acesso, que define o que a pessoa vê. As promoções usam estes cargos.</p></div></div>
+        <div className="team-panel-heading"><span className="team-icon"><Briefcase size={18} /></span><div><h2>Cargos</h2><p>Crie os cargos da sua empresa (ex.: Atendente, Consultor Sênior, Supervisor). Cada cargo tem um nível de acesso, que define o que a pessoa vê. As promoções usam estes cargos.</p></div></div>
         <div className="team-inline-form">
           <label className="field"><span>Novo cargo</span><input maxLength={80} value={newPosition.name} onChange={(event) => setNewPosition((current) => ({ ...current, name: event.target.value }))} placeholder="Ex.: Consultor Sênior" /></label>
           <label className="field"><span>Nível de acesso</span><select value={newPosition.level} onChange={(event) => setNewPosition((current) => ({ ...current, level: event.target.value as CompanyRoleKey }))}>{ROLES.map((role) => <option key={role} value={role}>{roleLabel(role)}</option>)}</select></label>

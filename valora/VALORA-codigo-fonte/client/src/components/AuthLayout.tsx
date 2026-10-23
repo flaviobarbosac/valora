@@ -9,9 +9,9 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         <ValoraLogo variant="dark" size="large" />
         <div className="login-brand-copy">
           <h1>Clareza em cada<br /><em>oportunidade.</em></h1>
-          <p>Organize atendimentos, acompanhe o próximo passo e veja seu pipeline de crédito — sozinho ou com toda a sua equipe.</p>
+          <p>Organize atendimentos, acompanhe o próximo passo e veja seu pipeline de vendas, do jeito do seu negócio — sozinho ou com toda a sua equipe.</p>
         </div>
-        <p className="login-brand-footer">VALORA <span>·</span> PIPELINE BANCÁRIO</p>
+        <p className="login-brand-footer">VALORA <span>·</span> PIPELINE DE VENDAS</p>
       </section>
       <section className="login-form-panel">
         <div className="login-card">

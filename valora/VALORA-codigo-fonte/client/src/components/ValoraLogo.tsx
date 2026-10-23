@@ -34,13 +34,13 @@ function Wordmark({ variant }: { variant: "light" | "dark" }) {
   );
 }
 
-export default function ValoraLogo({ compact = false, variant = "light", size = "default" }: Props) {
+export default function ValoraLogo({ compact = false, variant = "light", size = "default", tagline }: Props & { tagline?: string }) {
   return (
-    <div className={`valora-brand valora-brand-${variant} ${compact ? "valora-brand-compact" : ""} ${size === "large" ? "valora-brand-large" : ""}`} aria-label="VALORA Pipeline Bancário">
+    <div className={`valora-brand valora-brand-${variant} ${compact ? "valora-brand-compact" : ""} ${size === "large" ? "valora-brand-large" : ""}`} aria-label="VALORA Pipeline de vendas">
       <img className="valora-mark" src={VALORA_SYMBOL} alt="" aria-hidden="true" />
       <div className="valora-wordmark">
         <Wordmark variant={variant} />
-        {!compact && <span className="valora-tagline">PIPELINE BANCÁRIO</span>}
+        {!compact && <span className="valora-tagline">{tagline || "PIPELINE DE VENDAS"}</span>}
       </div>
     </div>
   );

@@ -50,9 +50,11 @@ export const users = mysqlTable(
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-/** Pipeline stages. "technical" (caso técnico) hands the case to the managers of the owner's agency. */
-export const CLIENT_STAGES = ["new", "contacted", "negotiation", "awaiting_limit", "technical", "sold", "lost"] as const;
-export type ClientStage = (typeof CLIENT_STAGES)[number];
+/**
+ * Stage keys come from the record's product (company_products.config). The
+ * stage "technical" (caso técnico) hands the case to the managers of the owner's agency.
+ */
+export type ClientStage = string;
 
 export const clientRecords = mysqlTable(
   "client_records",
@@ -63,18 +65,22 @@ export const clientRecords = mysqlTable(
     name: varchar("name", { length: 160 }).notNull(),
     contact: varchar("contact", { length: 100 }),
     contactDate: date("contact_date", { mode: "string" }).notNull(),
-    hasCreditLimit: mysqlEnum("has_credit_limit", ["yes", "no", "unknown"]).default("unknown").notNull(),
+    /** Kept in step with the stage kind: won → sold, lost → not_sold, otherwise pending. */
     saleStatus: mysqlEnum("sale_status", ["sold", "not_sold", "pending"]).default("pending").notNull(),
     lastProductSold: varchar("last_product_sold", { length: 160 }),
-    productClass: varchar("product_class", { length: 40 }),
-    isBankCustomer: mysqlEnum("is_bank_customer", ["yes", "no", "unknown"]).default("unknown").notNull(),
-    objection: mysqlEnum("objection", ["no_limit", "rate", "installment", "thinking", "no_interest", "documents", "later", "unreachable", "other"]),
+    /** Loss reason key, from the product's reasons. */
+    objection: varchar("objection", { length: 40 }),
     objectionNotes: text("objection_notes"),
-    interestedWithoutLimit: boolean("interested_without_limit").default(false).notNull(),
-    stage: mysqlEnum("stage", CLIENT_STAGES).default("new").notNull(),
+    stage: varchar("stage", { length: 40 }).default("new").notNull(),
     followUpDate: date("follow_up_date", { mode: "string" }),
     /** "Lembrar depois": the 3-day call reminder stays quiet until this day. */
     remindAfter: date("remind_after", { mode: "string" }),
+    /** The product (pipeline) this atendimento belongs to. */
+    productId: int("product_id"),
+    /** Registered customer (Clientes cadastrados), when linked. */
+    customerId: int("customer_id"),
+    /** JSON map of the product's extra fields. */
+    customFields: text("custom_fields"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
@@ -140,6 +146,8 @@ export const agencies = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     companyId: int("company_id").notNull(),
     name: varchar("name", { length: 120 }).notNull(),
+    /** What the agency sells: its pipeline comes from this product. */
+    productId: int("product_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => ({ companyIdx: index("agencies_company_idx").on(table.companyId) }),
@@ -222,8 +230,10 @@ export const companySettings = mysqlTable("company_settings", {
   logoDataUrl: mediumtext("logo_data_url"),
   /** { admin?: string, manager?: string, leader?: string, member?: string } */
   roleLabels: text("role_labels"),
-  /** { new?: string, contacted?: string, ... } */
+  /** Legacy stage names; stages are now named in each product. */
   stageLabels: text("stage_labels"),
+  /** JSON WorkspacePrefs (shared/pipeline.ts): wording, customer fields, reminders. */
+  prefs: text("prefs"),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
@@ -328,3 +338,65 @@ export const bugReports = mysqlTable("bug_reports", {
 });
 
 export type BugReport = typeof bugReports.$inferSelect;
+
+/**
+ * Products a company sells (or an independent person, with `ownerOpenId`), each
+ * with its own pipeline: stages, extra fields, loss reasons and item catalog.
+ */
+export const companyProducts = mysqlTable(
+  "company_products",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    companyId: int("company_id"),
+    ownerOpenId: varchar("owner_open_id", { length: 64 }),
+    name: varchar("name", { length: 80 }).notNull(),
+    /** Template it started from (shared/pipeline.ts). */
+    template: varchar("template", { length: 30 }).default("generico").notNull(),
+    color: varchar("color", { length: 7 }),
+    /** JSON ProductConfig. */
+    config: mediumtext("config").notNull(),
+    sortOrder: int("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    companyIdx: index("company_products_company_idx").on(table.companyId),
+    ownerIdx: index("company_products_owner_idx").on(table.ownerOpenId),
+  }),
+);
+
+export type CompanyProduct = typeof companyProducts.$inferSelect;
+
+/** Clientes cadastrados: the customer registry, owned by whoever registered them. */
+export const customers = mysqlTable(
+  "customers",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    ownerOpenId: varchar("owner_open_id", { length: 64 }).notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
+    document: varchar("document", { length: 32 }),
+    phone: varchar("phone", { length: 40 }),
+    email: varchar("email", { length: 320 }),
+    birthDate: date("birth_date", { mode: "string" }),
+    address: varchar("address", { length: 200 }),
+    district: varchar("district", { length: 100 }),
+    city: varchar("city", { length: 100 }),
+    state: varchar("state", { length: 40 }),
+    zip: varchar("zip", { length: 16 }),
+    notes: text("notes"),
+    /** JSON map of the workspace's extra customer fields. */
+    customFields: text("custom_fields"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({ ownerIdx: index("customers_owner_idx").on(table.ownerOpenId) }),
+);
+
+export type Customer = typeof customers.$inferSelect;
+
+/** Preferences of people who work on their own (companies use company_settings.prefs). */
+export const userSettings = mysqlTable("user_settings", {
+  ownerOpenId: varchar("owner_open_id", { length: 64 }).primaryKey(),
+  prefs: text("prefs"),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});

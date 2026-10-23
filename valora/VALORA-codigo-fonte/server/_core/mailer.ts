@@ -48,7 +48,7 @@ export async function sendInviteEmail(invite: InviteEmail): Promise<boolean> {
     <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0f2140">
       <div style="background:#0b1f3a;padding:22px 26px;border-radius:12px 12px 0 0">
         <span style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:.08em">VALORA</span>
-        <div style="color:#a9b8cd;font-size:10px;letter-spacing:.24em;margin-top:4px">PIPELINE BANCÁRIO</div>
+        <div style="color:#a9b8cd;font-size:10px;letter-spacing:.24em;margin-top:4px">PIPELINE DE VENDAS</div>
       </div>
       <div style="border:1px solid #e3e8f0;border-top:0;padding:26px;border-radius:0 0 12px 12px">
         <p style="font-size:15px;margin:0 0 14px"><b>${escapeHtml(invite.inviterName)}</b> convidou você para entrar na empresa <b>${escapeHtml(invite.companyName)}</b> como <b>${escapeHtml(invite.roleLabel)}</b>${escapeHtml(where)}.</p>
@@ -95,7 +95,7 @@ export async function sendVerificationEmail(message: { to: string; name: string;
     <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0f2140">
       <div style="background:#0b1f3a;padding:22px 26px;border-radius:12px 12px 0 0">
         <span style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:.08em">VALORA</span>
-        <div style="color:#a9b8cd;font-size:10px;letter-spacing:.24em;margin-top:4px">PIPELINE BANCÁRIO</div>
+        <div style="color:#a9b8cd;font-size:10px;letter-spacing:.24em;margin-top:4px">PIPELINE DE VENDAS</div>
       </div>
       <div style="border:1px solid #e3e8f0;border-top:0;padding:26px;border-radius:0 0 12px 12px">
         <p style="font-size:15px;margin:0 0 14px">${escapeHtml(firstName)}, use este código para ${reset ? "criar uma nova senha" : "confirmar seu e-mail"}:</p>

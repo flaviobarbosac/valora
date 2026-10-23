@@ -2,7 +2,8 @@ import { COOKIE_NAME, normalizeEmail } from "@shared/const";
 import { nanoid } from "nanoid";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { CLIENT_STAGES, type User } from "../drizzle/schema";
+import { type User } from "../drizzle/schema";
+import { cleanCustomValues, parseCustomValues, saleStatusOfKind } from "@shared/pipeline";
 import {
   createClientRecord,
   countEmailCodeAttempt,
@@ -25,6 +26,8 @@ import {
 import * as org from "./orgDb";
 import { checkInviteToken, joinWithInvite, organizationRouter, superAdminRouter } from "./orgRouter";
 import { featuresRouter } from "./featuresRouter";
+import * as ws from "./workspaceDb";
+import { customersRouter, workspaceRouter } from "./workspaceRouter";
 import { latestRatings, noteCounts } from "./featuresDb";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { EMAIL_CODE_MAX_ATTEMPTS, EMAIL_CODE_VALID_MINUTES, emailCodeExpiry, emailCodeMatches, emailCodeRecentlySent, hashEmailCode, newEmailCode, type EmailCodePurpose } from "./_core/emailCode";
@@ -103,57 +106,53 @@ const verificationNeeded = (email: string, delivery: { emailSent: boolean; mailC
   ({ status: "verify_email" as const, email, ...delivery });
 
 const idInput = z.object({ id: z.number().int().positive() });
+const stageKey = z.string().regex(/^[a-z0-9_]{1,40}$/, "Etapa inválida.");
 const clientFields = z.object({
   name: z.string().trim().min(1, "Informe o nome do cliente").max(160),
   contact: z.string().trim().max(100).nullable(),
   contactDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida"),
-  hasCreditLimit: z.enum(["yes", "no", "unknown"]),
-  saleStatus: z.enum(["sold", "not_sold", "pending"]),
   lastProductSold: z.string().trim().max(160).nullable(),
-  productClass: z.enum(["consignado", "pessoal", "cartao_consignado", "refinanciamento", "outros"]).nullable(),
-  isBankCustomer: z.enum(["yes", "no", "unknown"]),
-  objection: z.enum(["no_limit", "rate", "installment", "thinking", "no_interest", "documents", "later", "unreachable", "other"]).nullable(),
+  /** Loss reason key, from the product's reasons. */
+  objection: z.string().max(40).nullable(),
   objectionNotes: z.string().trim().max(2000).nullable(),
-  interestedWithoutLimit: z.boolean(),
-  stage: z.enum(CLIENT_STAGES),
+  stage: stageKey,
   followUpDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+  customerId: z.number().int().positive().nullable(),
+  customFields: z.record(z.string().max(40), z.string().max(2000)),
 });
+type ClientFields = z.infer<typeof clientFields>;
 
-function validateClientRules(data: z.infer<typeof clientFields>, context: z.RefinementCtx) {
-  if (data.saleStatus === "sold" && !data.lastProductSold) {
-    context.addIssue({ code: "custom", path: ["lastProductSold"], message: "Informe o último produto vendido." });
-  }
-  if (data.saleStatus === "sold" && !data.productClass) {
-    context.addIssue({ code: "custom", path: ["productClass"], message: "Classifique o produto vendido." });
-  }
-  if (data.productClass && !data.lastProductSold) {
-    context.addIssue({ code: "custom", path: ["productClass"], message: "Informe o nome do produto antes de classificá-lo." });
-  }
-  if (data.saleStatus === "sold" && data.stage !== "sold") {
-    context.addIssue({ code: "custom", path: ["stage"], message: "Uma venda realizada deve ficar na etapa Venda realizada." });
-  }
-  if (data.saleStatus !== "sold" && data.stage === "sold") {
-    context.addIssue({ code: "custom", path: ["stage"], message: "A etapa Venda realizada requer uma venda fechada." });
-  }
-  if (data.stage === "lost" && data.saleStatus !== "not_sold") {
-    context.addIssue({ code: "custom", path: ["stage"], message: "A etapa Não fechou requer esse resultado no atendimento." });
-  }
-  if (data.stage === "technical" && data.saleStatus !== "pending") {
-    context.addIssue({ code: "custom", path: ["stage"], message: "Caso técnico vale só para atendimentos em andamento." });
-  }
-  if (data.saleStatus === "not_sold" && !data.objection) {
-    context.addIssue({ code: "custom", path: ["objection"], message: "Informe por que a venda não fechou." });
-  }
-  if (data.interestedWithoutLimit && (data.hasCreditLimit !== "no" || data.saleStatus === "sold")) {
-    context.addIssue({ code: "custom", path: ["interestedWithoutLimit"], message: "Interesse sem limite deve corresponder a um atendimento sem limite e ainda não fechado." });
-  }
+/** The product (pipeline) of a record; older records fall back to the owner's current product. */
+async function productOfRecord(record: { productId: number | null; ownerOpenId: string }) {
+  const [saved] = record.productId ? await ws.getProductsByIds([record.productId]) : [];
+  return saved ?? (await ws.productForUser(record.ownerOpenId, true))!;
 }
 
-const createClientInput = clientFields.superRefine(validateClientRules);
-const updateClientInput = idInput.extend(clientFields.shape).superRefine((data, context) => {
-  const { id: _id, ...fields } = data;
-  validateClientRules(fields, context);
-});
+/** A customer can be linked only by whoever registered them. */
+async function requireOwnCustomer(ownerOpenId: string, customerId: number | null) {
+  if (!customerId) return;
+  const customer = await ws.getCustomer(customerId);
+  if (!customer || customer.ownerOpenId !== ownerOpenId) throw new TRPCError({ code: "BAD_REQUEST", message: "Cliente cadastrado não encontrado." });
+}
+
+function stageOf(product: ws.Product, key: string) {
+  const stage = product.config.stages.find((item) => item.key === key);
+  if (!stage) throw new TRPCError({ code: "BAD_REQUEST", message: "Essa etapa não existe no pipeline deste produto." });
+  return stage;
+}
+
+/** Checks a record against its product's pipeline and turns it into database values. */
+async function recordValues(ownerOpenId: string, product: ws.Product, input: ClientFields) {
+  const stage = stageOf(product, input.stage);
+  const reasons = product.config.reasons;
+  const objection = input.objection && reasons.some((reason) => reason.key === input.objection) ? input.objection : null;
+  if (stage.kind === "lost" && reasons.length && !objection) throw new TRPCError({ code: "BAD_REQUEST", message: "Informe por que não fechou." });
+  const custom = cleanCustomValues(product.config.fields, input.customFields);
+  if (custom.problem) throw new TRPCError({ code: "BAD_REQUEST", message: custom.problem });
+  await requireOwnCustomer(ownerOpenId, input.customerId);
+  const { customFields: _raw, ...base } = input;
+  return { ...base, objection, saleStatus: saleStatusOfKind(stage.kind), customFields: JSON.stringify(custom.values), productId: product.id };
+}
 
 const isValidAvatarDataUrl = (value: string | null) => isValidImageDataUrl(value);
 
@@ -353,45 +352,66 @@ export const appRouter = router({
       const records = await listClientRecords(visible);
       const ids = records.map((record) => record.id);
       const [ratings, notes] = await Promise.all([latestRatings(ids), noteCounts(ids)]);
-      return records.map(({ ownerOpenId, ...record }) => {
+      return records.map(({ ownerOpenId, customFields, ...record }) => {
         const isMine = ownerOpenId === ctx.user.openId;
         return {
-          ...record, isMine, canEdit: isMine || (record.stage === "technical" && managed.has(ownerOpenId)),
+          ...record, customFields: parseCustomValues(customFields), isMine,
+          canEdit: isMine || (record.stage === "technical" && managed.has(ownerOpenId)),
           // Leaders and managers can charge/evaluate the people below them.
           canReview: !isMine,
           lastRating: ratings.get(record.id) ?? null, noteCount: notes.get(record.id) ?? 0,
         };
       });
     }),
-    create: protectedProcedure.input(createClientInput).mutation(({ ctx, input }) =>
-      createClientRecord(ctx.user.openId, { ...input, reference: makeReference() }),
-    ),
+    // New atendimentos follow the pipeline of the person's agency. People who work
+    // on their own may pick any of their products.
+    create: protectedProcedure.input(clientFields.extend({ productId: z.number().int().positive().optional() })).mutation(async ({ ctx, input }) => {
+      const { productId, ...fields } = input;
+      const space = await ws.workspaceOf(ctx.user.openId);
+      const chosen = productId && space.kind === "personal" ? await ws.getWorkspaceProduct(space, productId) : undefined;
+      if (productId && space.kind === "personal" && !chosen) throw new TRPCError({ code: "BAD_REQUEST", message: "Produto não encontrado." });
+      const product = chosen ?? (await ws.productForUser(ctx.user.openId, true))!;
+      const id = await createClientRecord(ctx.user.openId, { ...(await recordValues(ctx.user.openId, product, fields)), reference: makeReference() });
+      return { success: true, id } as const;
+    }),
     update: protectedProcedure
-      .input(updateClientInput)
+      .input(idInput.extend(clientFields.shape))
       .mutation(async ({ ctx, input }) => {
         const { id, ...values } = input;
         const record = await requireEditableRecord(ctx.user.openId, id);
-        return updateClientRecord(record.ownerOpenId, id, values);
+        const product = await productOfRecord(record);
+        return updateClientRecord(record.ownerOpenId, id, await recordValues(record.ownerOpenId, product, values));
       }),
+    // Drag and drop on the pipeline. Moving to a "não fechou" stage needs the reason.
     updateStage: protectedProcedure
-      .input(z.object({ id: z.number().int().positive(), stage: z.enum(CLIENT_STAGES) }))
+      .input(z.object({ id: z.number().int().positive(), stage: stageKey, objection: z.string().max(40).nullable().optional() }))
       .mutation(async ({ ctx, input }) => {
         const current = await requireEditableRecord(ctx.user.openId, input.id);
-        if ((current.saleStatus === "sold") !== (input.stage === "sold")) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "A etapa Venda realizada deve corresponder ao resultado do atendimento." });
+        const product = await productOfRecord(current);
+        const stage = stageOf(product, input.stage);
+        const reasons = product.config.reasons;
+        const objection = input.objection !== undefined ? input.objection : current.objection;
+        const validObjection = objection && reasons.some((reason) => reason.key === objection) ? objection : null;
+        if (stage.kind === "lost" && reasons.length && !validObjection) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Informe por que não fechou." });
         }
-        if (input.stage === "lost" && current.saleStatus !== "not_sold") {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "A etapa Não fechou requer esse resultado no atendimento." });
-        }
-        if (input.stage === "technical" && current.saleStatus !== "pending") {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Caso técnico vale só para atendimentos em andamento." });
-        }
-        return updateClientRecord(current.ownerOpenId, input.id, { stage: input.stage });
+        return updateClientRecord(current.ownerOpenId, input.id, {
+          stage: stage.key, saleStatus: saleStatusOfKind(stage.kind), productId: product.id,
+          ...(input.objection !== undefined ? { objection: validObjection } : {}),
+        });
+      }),
+    /** Links (or unlinks) a registered customer, e.g. right after "Cadastrar cliente" on the postcard. */
+    setCustomer: protectedProcedure
+      .input(idInput.extend({ customerId: z.number().int().positive().nullable() }))
+      .mutation(async ({ ctx, input }) => {
+        const record = await requireEditableRecord(ctx.user.openId, input.id);
+        await requireOwnCustomer(record.ownerOpenId, input.customerId);
+        return updateClientRecord(record.ownerOpenId, input.id, { customerId: input.customerId });
       }),
     delete: protectedProcedure.input(idInput).mutation(({ ctx, input }) =>
       deleteClientRecord(ctx.user.openId, input.id),
     ),
-    // "Lembrar depois" on the 3-day call reminder: quiet for three more days.
+    // "Lembrar depois" on the call reminder: quiet for a few more days.
     snoozeReminder: protectedProcedure
       .input(idInput.extend({ until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
       .mutation(async ({ ctx, input }) => {
@@ -399,6 +419,8 @@ export const appRouter = router({
         return updateClientRecord(ctx.user.openId, input.id, { remindAfter: input.until });
       }),
   }),
+  workspace: workspaceRouter,
+  customers: customersRouter,
   goals: router({
     get: protectedProcedure.query(({ ctx }) => getOwnerGoals(ctx.user.openId)),
     save: protectedProcedure.input(z.object({

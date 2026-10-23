@@ -1,22 +1,19 @@
 import { COMPANY_ROLE_LABELS, type CompanyRoleKey } from "@shared/const";
-import { setStageLabelOverrides, stageLabel } from "@/lib/client-types";
 
-// Company customization ("Personalizar"): role and stage names, colors and logo.
+// Company customization ("Personalizar"): role names, colors and logo.
 // Labels live in a module-level map that Home refreshes on every render from the
-// company's settings, so any component can call roleLabel()/stageName().
+// company's settings, so any component can call roleLabel(). Stage names live in
+// each product's pipeline (lib/workspace).
 
 let roleOverrides: Partial<Record<CompanyRoleKey, string>> = {};
 
-export function setBrandLabels(roles: Record<string, string> | undefined, stages: Record<string, string> | undefined) {
+export function setBrandLabels(roles: Record<string, string> | undefined) {
   roleOverrides = (roles ?? {}) as Partial<Record<CompanyRoleKey, string>>;
-  setStageLabelOverrides(stages ?? {});
 }
 
 export function roleLabel(role: CompanyRoleKey) {
   return roleOverrides[role] || COMPANY_ROLE_LABELS[role];
 }
-
-export const stageName = stageLabel;
 
 export const DEFAULT_COLORS = { primary: "#13315c", dark: "#0b1f3a", accent: "#6fc8ef" } as const;
 

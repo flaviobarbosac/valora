@@ -12,6 +12,8 @@ type Props = {
   reminders: ClientRecord[];
   notifications: AppNotification[];
   today: string;
+  /** Days without a scheduled call before the reminder (Personalizar). */
+  reminderDays: number;
   readOnly: boolean;
   onOpen: (record: ClientRecord) => void;
   onSnooze: (record: ClientRecord) => void;
@@ -31,7 +33,7 @@ const when = (value: string | Date) => {
   return new Date(value).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
 };
 
-export default function ReminderBell({ reminders, notifications, today, readOnly, onOpen, onSnooze, onNotification, onMarkAllRead }: Props) {
+export default function ReminderBell({ reminders, notifications, today, reminderDays, readOnly, onOpen, onSnooze, onNotification, onMarkAllRead }: Props) {
   const unread = notifications.filter((item) => !item.readAt);
   const total = reminders.length + unread.length;
 
@@ -68,7 +70,7 @@ export default function ReminderBell({ reminders, notifications, today, readOnly
         </>}
         <DropdownMenuLabel className="reminder-menu-header">
           <strong>Lembretes de retorno</strong>
-          <small>Clientes sem data de retorno marcada há 3 dias ou mais.</small>
+          <small>Sem data de retorno marcada há {reminderDays} {reminderDays === 1 ? "dia" : "dias"} ou mais.</small>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         {reminders.length === 0 ? (
@@ -85,7 +87,7 @@ export default function ReminderBell({ reminders, notifications, today, readOnly
                   </button>
                   <span className="reminder-actions">
                     <button type="button" onClick={() => onOpen(record)}>Abrir ficha</button>
-                    {!readOnly && <button type="button" onClick={() => onSnooze(record)}><Clock3 size={12} />Lembrar em 3 dias</button>}
+                    {!readOnly && <button type="button" onClick={() => onSnooze(record)}><Clock3 size={12} />Lembrar em {reminderDays} {reminderDays === 1 ? "dia" : "dias"}</button>}
                     <button type="button" onClick={() => void copy(record)} title="Copiar lembrete com o link"><Copy size={12} /></button>
                   </span>
                 </li>

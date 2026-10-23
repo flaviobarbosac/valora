@@ -132,10 +132,10 @@ describe("cargos", () => {
 describe("personalização e relatos de erro", () => {
   it("only the company admin customizes, and colors must be valid", async () => {
     memberships({ lider: member("lider", "leader"), admin: member("admin", "admin") });
-    const input = { displayName: "Banco X", primaryColor: "#b3121f", darkColor: "#5c0a10", accentColor: "#ffb4b9", logoDataUrl: null, roleLabels: { leader: "Supervisor", hacker: "x" }, stageLabels: { technical: "Suporte" } };
+    const input = { displayName: "Banco X", primaryColor: "#b3121f", darkColor: "#5c0a10", accentColor: "#ffb4b9", logoDataUrl: null, roleLabels: { leader: "Supervisor", hacker: "x" } };
     await expect(callerFor(user("lider")).features.saveBranding(input)).rejects.toMatchObject({ code: "FORBIDDEN" });
     await callerFor(user("admin")).features.saveBranding(input);
-    expect(features.saveCompanySettings).toHaveBeenCalledWith(10, expect.objectContaining({ roleLabels: { leader: "Supervisor" }, stageLabels: { technical: "Suporte" } }));
+    expect(features.saveCompanySettings).toHaveBeenCalledWith(10, expect.objectContaining({ roleLabels: { leader: "Supervisor" } }));
     await expect(callerFor(user("admin")).features.saveBranding({ ...input, primaryColor: "red" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
     await expect(callerFor(user("admin")).features.saveBranding({ ...input, logoDataUrl: "data:image/svg+xml;base64,PHN2Zy8+" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });

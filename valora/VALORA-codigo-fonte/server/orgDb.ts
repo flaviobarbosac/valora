@@ -105,7 +105,7 @@ export async function agencyPerformance(companyId: number, month: string, onlyAg
   const teamList = overview.teams.filter((team) => (onlyAgencyId === null || team.agencyId === onlyAgencyId) && (onlyTeamId === null || team.id === onlyTeamId));
   return {
     company: { id: overview.company.id, name: overview.company.name },
-    agencies: agencyList.map(({ id, name }) => ({ id, name })),
+    agencies: agencyList.map(({ id, name, productId }) => ({ id, name, productId })),
     teams: teamList.map(({ id, name, agencyId }) => ({ id, name, agencyId })),
     people,
   };
@@ -192,8 +192,12 @@ export async function getTeam(companyId: number, teamId: number) {
   return rows[0];
 }
 
-export async function createAgency(companyId: number, name: string) {
-  await (await db()).insert(agencies).values({ companyId, name });
+export async function createAgency(companyId: number, name: string, productId: number | null = null) {
+  await (await db()).insert(agencies).values({ companyId, name, productId });
+}
+
+export async function setAgencyProduct(companyId: number, agencyId: number, productId: number | null) {
+  await (await db()).update(agencies).set({ productId }).where(and(eq(agencies.id, agencyId), eq(agencies.companyId, companyId)));
 }
 
 export async function renameAgency(companyId: number, agencyId: number, name: string) {

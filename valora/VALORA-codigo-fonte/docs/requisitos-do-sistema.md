@@ -31,45 +31,33 @@ O produto registra informações inseridas pelo atendente. **Não consulta burea
 
 O usuário deve conseguir criar, consultar, editar e excluir registros de atendimento. O referencial é gerado pelo sistema no cadastro, em formato `VLR-<data>-<sufixo>`; a interface o mostra na ficha e nas listagens.
 
-Cada registro armazena:
+Cada registro pertence a um **produto** (RF-22) e armazena:
 
-- nome do cliente (obrigatório; até 160 caracteres);
+- nome do cliente (obrigatório; até 160 caracteres) e, opcionalmente, o cliente cadastrado ligado (RF-23);
 - contato, como telefone ou e-mail (opcional; até 100 caracteres);
 - dia do contato (obrigatório);
-- disponibilidade de limite: sim, não ou ainda não verificado;
-- resultado: venda fechada, não fechou ou em andamento;
-- último produto vendido e respectiva classe;
-- se a pessoa já é cliente do banco: sim, não ou não informado;
-- motivo principal da objeção e observação opcional;
-- se há interesse no empréstimo sem limite disponível no momento;
-- etapa atual do pipeline;
+- etapa atual do pipeline do produto; o resultado (fechou, não fechou, em andamento) vem do tipo da etapa;
+- item vendido (quando fechou), com sugestões do catálogo do produto;
+- motivo de não fechar ou situação, da lista do produto, e observação opcional;
+- os campos extras definidos no produto;
 - data opcional do próximo contato.
 
 ### RF-02 — Validar coerência comercial
 
-- Venda fechada exige o nome do produto e uma classe.
-- A classe só pode ser informada quando há um nome de produto.
-- O resultado de venda fechada exige a etapa “Venda realizada”; essa etapa não pode ser usada sem venda fechada.
-- A etapa “Não fechou” exige resultado “Não fechou”.
-- Um atendimento marcado como “Não fechou” exige motivo da objeção.
-- “Interesse sem limite” exige limite indisponível e atendimento ainda não fechado.
+- A etapa precisa existir no pipeline do produto do atendimento.
+- O resultado acompanha o tipo da etapa: "Fechou" → venda, "Não fechou" → não fechou, as demais → em andamento.
+- Uma etapa de "Não fechou" exige um motivo da lista do produto (quando o produto tem motivos); ao arrastar para ela, o app pede o motivo.
+- Campos marcados como obrigatórios no produto precisam ser preenchidos; valores fora da lista de opções são descartados.
+- Só é possível ligar clientes cadastrados por quem registrou o atendimento.
 - As regras são validadas no cliente e no servidor.
 
-### RF-03 — Classificar produto vendido
+### RF-03 — Item vendido
 
-O usuário escolhe uma classe para cada venda registrada:
-
-1. Empréstimo consignado;
-2. Empréstimo pessoal;
-3. Cartão consignado / saque;
-4. Refinanciamento / portabilidade;
-5. Outros.
-
-A tela identifica produtos sem classe e oferece filtro para encontrá-los. Registros sem produto não são tratados como vendas não classificadas.
+Ao fechar, a pessoa informa o item vendido (o nome do campo é configurável, ex.: "Apólice", "Imóvel"). O catálogo do produto sugere os itens, e a visão geral mostra o que mais vendeu no mês, com filtro por item.
 
 ### RF-04 — Acompanhar pipeline
 
-Os registros podem ser acompanhados nas etapas: Novo atendimento, Em atendimento, Em negociação, Aguardando limite, Caso técnico, Venda realizada e Não fechou. A etapa muda pela ficha, pela lista ou arrastando o cartão no pipeline (RF-16). A interface permite mudar etapas compatíveis com o resultado; o servidor rejeita transições inconsistentes.
+Os registros são acompanhados nas etapas do pipeline do produto. A etapa muda pela ficha, pela lista ou arrastando o cartão no pipeline (RF-16). Clicar num cartão abre o cartão postal do cliente (RF-23). Atendimentos de produtos diferentes aparecem em abas.
 
 ### RF-05 — Consultar painel e metas
 
@@ -89,7 +77,7 @@ O usuário pode exportar os registros atualmente filtrados. O arquivo inclui ref
 
 A tela Atendimentos mostra quatro blocos, clicáveis para filtrar a lista: **Esperando retorno** (em andamento), **Retorno com sucesso** (venda concluída), **Retorno falho** (não concluiu em venda) e **Deve retornar de novo** (cliente indeciso, com a objeção "Vai pensar" ou "Retornar em outro momento", que pode ser marcada também em atendimentos em andamento).
 
-### RF-13 — Lembrete de ligação após 3 dias
+### RF-13 — Lembrete de ligação (3 dias por padrão, ajustável em Personalizar)
 
 Quando um atendimento próprio está em andamento ou indeciso, sem data de próximo contato, e o último contato foi há 3 dias ou mais, o app mostra o aviso "Opa, não esqueça de ligar para <cliente>!". O aviso aparece ao abrir o app e fica no sino do topo, com o link `/?atendimento=<id>`, que abre a ficha do cliente. "Lembrar em 3 dias" adia o aviso; marcar uma data de próximo contato ou fechar o atendimento o encerra. O lembrete é só dentro do app: não há envio de e-mail, SMS ou notificação push.
 
@@ -121,7 +109,22 @@ O líder (ou gerente) pede a promoção de alguém da sua área para um cargo, c
 
 ### RF-20 — Personalização da empresa
 
-O administrador define o nome exibido, a logo (JPG, PNG ou WebP de até 300 KB), as cores do app (modelos prontos ou livres), os nomes dos perfis, os nomes das etapas do pipeline e os cargos da empresa, cada um ligado a um nível de acesso. As mudanças valem para todas as pessoas da empresa.
+O administrador define o nome exibido, a logo (JPG, PNG ou WebP de até 300 KB), as cores do app (modelos prontos ou livres), os nomes dos perfis, os cargos da empresa (cada um ligado a um nível de acesso), os produtos e pipelines (RF-22), o vocabulário (Cliente, Atendimento e Venda, com gênero), os campos extras do cadastro de clientes, os dias do lembrete de ligação, se as metas aparecem e a frase do menu lateral. As mudanças valem para todas as pessoas da empresa. Quem trabalha sozinho personaliza os próprios produtos e o vocabulário.
+
+### RF-22 — Produtos e pipelines
+
+- A empresa cadastra os produtos que vende, a partir de modelos prontos (Vendas em geral, Crédito bancário, Imóveis, Seguros, Veículos, Serviços e consultoria, Educação e cursos), e muda nome, cor, etapas (nome, cor, ordem e tipo), campos do atendimento, motivos de não fechar e catálogo de itens.
+- Um pipeline precisa ter entre 3 e 14 etapas, começar por uma etapa em andamento e ter pelo menos uma etapa de "Fechou" e uma de "Não fechou"; a etapa de caso técnico é opcional e única.
+- Etapas com atendimentos não podem ser excluídas nem mudar de tipo. Produtos com agências ou atendimentos não podem ser excluídos, e sempre resta pelo menos um.
+- Cada agência vende um produto, escolhido ao criá-la e alterável depois; quem está na agência trabalha com o pipeline desse produto. A empresa começa com o produto escolhido na criação.
+- Independentes podem ter vários produtos e escolhem o produto de cada atendimento novo.
+
+### RF-23 — Clientes cadastrados
+
+- Cadastro com nome (obrigatório), documento, telefone, e-mail, nascimento, endereço, bairro, cidade, UF, CEP, observações e os campos extras da empresa.
+- No pipeline, clicar num cliente abre o cartão postal: atendimento de um lado, endereço e contatos do outro. Pelo cartão é possível cadastrar o cliente (com os dados do atendimento) e ligá-lo, editar o atendimento ou o cadastro.
+- O menu tem a seção "Clientes cadastrados", com busca e o histórico de atendimentos de cada cliente.
+- A visibilidade segue a dos atendimentos (a própria pessoa e quem está abaixo dela na equipe ou agência); só quem cadastrou altera ou exclui. Excluir o cadastro não apaga os atendimentos.
 
 ### RF-21 — Relatar erro
 
@@ -175,10 +178,13 @@ Ao clicar no avatar/ícone de conta, o usuário abre o menu da conta com as opç
 - `companies`, `agencies`, `teams`: estrutura Empresa › Agência › Equipe.
 - `company_members`: vínculo de cada usuário à empresa, com perfil (administrador, gerente, líder, usuário), agência e equipe.
 - `invitations`: convites com e-mail, perfil, lotação, hash do token, validade e situação (aceito/cancelado).
-- `client_records`: atendimentos, oportunidade, produto, etapa, data de retorno e data do "lembrar depois" (`remind_after`); inclui `owner_open_id` para isolamento por usuário.
+- `client_records`: atendimentos com produto (`product_id`), cliente cadastrado (`customer_id`), etapa, resultado, item vendido, motivo, campos extras (`custom_fields`, JSON), data de retorno e data do "lembrar depois" (`remind_after`); inclui `owner_open_id` para isolamento por usuário.
+- `company_products`: produtos da empresa (ou de quem trabalha sozinho) com o pipeline em JSON: etapas, campos, motivos e catálogo; `agencies.product_id` diz o que cada agência vende.
+- `customers`: clientes cadastrados, com endereço, contatos, observações e campos extras.
+- `user_settings`: preferências de quem trabalha sozinho (vocabulário, campos do cadastro, lembrete).
 - `user_goals`: metas mensais por usuário.
 - `user_profiles`: nome de exibição, cargo e foto compactada por usuário.
-- `company_settings`: nome exibido, cores, logo e nomes personalizados de perfis e etapas.
+- `company_settings`: nome exibido, cores, logo, nomes personalizados de perfis e preferências (`prefs`: vocabulário, campos do cadastro, lembrete, metas, frase do menu).
 - `company_positions`: cargos da empresa e o nível de acesso de cada um; `company_members.position_id` liga a pessoa ao cargo.
 - `promotion_requests`: pedidos de promoção com motivo, aumento proposto e as decisões do gerente e da administração.
 - `record_notes`: cobranças, avaliações (nota de 1 a 5) e comentários sobre atendimentos.

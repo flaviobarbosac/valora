@@ -85,6 +85,20 @@
       "when": 1792248623761,
       "tag": "0011_email_verification",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1792789002370,
+      "tag": "0012_products_customers",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1792789064191,
+      "tag": "0013_drop_bank_columns",
+      "breakpoints": true
     }
   ]
 }

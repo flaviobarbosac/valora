@@ -6,6 +6,8 @@ import { COMPANY_ROLES, type CompanyMember, type User } from "../drizzle/schema"
 import { setUserActive } from "./db";
 import { getCompanySettings } from "./featuresDb";
 import * as org from "./orgDb";
+import * as ws from "./workspaceDb";
+import { templateByKey } from "@shared/pipeline";
 import { ENV } from "./_core/env";
 import { consumeRateLimit } from "./_core/loginRateLimit";
 import { isMailConfigured, sendInviteEmail } from "./_core/mailer";
@@ -127,6 +129,17 @@ function visibleMembers<T extends { openId: string; agencyId: number | null; tea
   return members.filter((member) => (me.teamId !== null && member.teamId === me.teamId) || member.openId === me.userOpenId);
 }
 
+/** A product of the admin's company; with none given, the company's first product. */
+async function companyProductId(me: CompanyMember, productId: number | null) {
+  const space = { kind: "company" as const, companyId: me.companyId, member: me };
+  if (productId) {
+    if (!(await ws.getWorkspaceProduct(space, productId))) fail("BAD_REQUEST", "Produto não encontrado.");
+    return productId;
+  }
+  const [first] = await ws.listProducts(space);
+  return first?.id ?? null;
+}
+
 export const organizationRouter = router({
   me: protectedProcedure.query(async ({ ctx }) => {
     const member = await org.getMembership(ctx.user.openId);
@@ -140,7 +153,7 @@ export const organizationRouter = router({
     return {
       membership: { role: member.role, agencyId: member.agencyId, teamId: member.teamId },
       company: { id: overview.company.id, name: overview.company.name },
-      agencies: overview.agencies.map(({ id, name }) => ({ id, name })),
+      agencies: overview.agencies.map(({ id, name, productId }) => ({ id, name, productId })),
       teams: overview.teams.map(({ id, name, agencyId }) => ({ id, name, agencyId })),
       members,
       invitations: isAdmin ? await org.listPendingInvitations(member.companyId) : [],
@@ -162,9 +175,13 @@ export const organizationRouter = router({
       return { ...data!, scope };
     }),
 
-  createCompany: protectedProcedure.input(z.object({ name: nameInput })).mutation(async ({ ctx, input }) => {
+  // The company starts with one product, from the template of what it sells.
+  createCompany: protectedProcedure.input(z.object({ name: nameInput, template: z.string().max(30).optional(), productName: z.string().trim().min(2).max(80).optional() })).mutation(async ({ ctx, input }) => {
     if (await org.getMembership(ctx.user.openId)) fail("CONFLICT", "Você já faz parte de uma empresa.");
     const companyId = await org.createCompanyWithAdmin(ctx.user.openId, input.name);
+    const template = templateByKey(input.template);
+    const member = (await org.getMembership(ctx.user.openId))!;
+    await ws.createProduct({ kind: "company", companyId, member }, { name: input.productName || template.name, template: template.key, color: template.color });
     return { companyId };
   }),
 
@@ -187,9 +204,18 @@ export const organizationRouter = router({
     return { companyDeleted: false };
   }),
 
-  createAgency: protectedProcedure.input(z.object({ name: nameInput })).mutation(async ({ ctx, input }) => {
+  // Each agency sells one product: its people work with that product's pipeline.
+  createAgency: protectedProcedure.input(z.object({ name: nameInput, productId: idInput.nullable().optional() })).mutation(async ({ ctx, input }) => {
     const me = await requireCompanyAdmin(ctx.user);
-    await org.createAgency(me.companyId, input.name);
+    const productId = await companyProductId(me, input.productId ?? null);
+    await org.createAgency(me.companyId, input.name, productId);
+    return { success: true } as const;
+  }),
+
+  setAgencyProduct: protectedProcedure.input(z.object({ id: idInput, productId: idInput })).mutation(async ({ ctx, input }) => {
+    const me = await requireCompanyAdmin(ctx.user);
+    if (!(await org.getAgency(me.companyId, input.id))) fail("NOT_FOUND", "Agência não encontrada.");
+    await org.setAgencyProduct(me.companyId, input.id, await companyProductId(me, input.productId));
     return { success: true } as const;
   }),
 

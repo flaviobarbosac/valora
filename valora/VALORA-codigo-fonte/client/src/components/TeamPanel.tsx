@@ -9,10 +9,11 @@ import { COMPANY_ROLE_LABELS, COMPANY_ROLE_SCOPE, INVITE_VALID_DAYS, type Compan
 import { useAppDialog } from "@/components/AppDialogs";
 import { trpc } from "@/lib/trpc";
 import { roleLabel } from "@/lib/branding";
+import { useWorkspace } from "@/lib/workspace";
 import type { AppRouter } from "../../../server/routers";
 
 type OrgData = inferRouterOutputs<AppRouter>["organization"]["me"];
-type Agency = { id: number; name: string };
+type Agency = { id: number; name: string; productId?: number | null };
 type Team = { id: number; name: string; agencyId: number };
 type Placement = { role: CompanyRoleKey; agencyId: number | null; teamId: number | null };
 
@@ -78,13 +79,16 @@ function placementText(placement: Pick<Placement, "role" | "agencyId" | "teamId"
 function IndependentCard() {
   const utils = trpc.useUtils();
   const create = trpc.organization.createCompany.useMutation();
+  const templates = useWorkspace().data?.templates ?? [];
   const [name, setName] = useState("");
+  const [template, setTemplate] = useState("generico");
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     try {
-      await create.mutateAsync({ name });
+      await create.mutateAsync({ name, template });
       await utils.organization.me.invalidate();
       await utils.clients.list.invalidate();
+      await utils.workspace.get.invalidate();
       toast.success("Empresa criada. Agora cadastre agências, equipes e convide as pessoas.");
     } catch (error) {
       toast.error(errorMessage(error, "Não foi possível criar a empresa."));
@@ -102,7 +106,8 @@ function IndependentCard() {
       <article className="panel team-panel">
         <div className="team-panel-heading"><span className="team-icon"><Building2 size={18} /></span><div><h2>Criar uma empresa</h2><p>Organize agências e equipes e convide pessoas por e-mail.</p></div></div>
         <form className="team-inline-form" onSubmit={(event) => void submit(event)}>
-          <label className="field"><span>Nome da empresa</span><input value={name} maxLength={120} onChange={(event) => setName(event.target.value)} placeholder="Ex.: Banco Exemplo — Regional Sul" /></label>
+          <label className="field"><span>Nome da empresa</span><input value={name} maxLength={120} onChange={(event) => setName(event.target.value)} placeholder="Ex.: Imobiliária Horizonte" /></label>
+          <label className="field"><span>O que a empresa vende?</span><select value={template} onChange={(event) => setTemplate(event.target.value)}>{templates.map((item) => <option key={item.key} value={item.key}>{item.name}</option>)}</select></label>
           <button type="submit" className="button button-primary" disabled={create.isPending || name.trim().length < 2}>{create.isPending ? "Criando…" : <><Plus size={15} />Criar empresa</>}</button>
         </form>
       </article>
@@ -119,7 +124,12 @@ function StructureSection({ agencies, teams, members }: { agencies: Agency[]; te
   const renameTeam = trpc.organization.renameTeam.useMutation();
   const deleteAgency = trpc.organization.deleteAgency.useMutation();
   const deleteTeam = trpc.organization.deleteTeam.useMutation();
+  const setAgencyProduct = trpc.organization.setAgencyProduct.useMutation();
+  const workspace = useWorkspace();
+  const products = workspace.products.filter((product) => product.inWorkspace && product.id > 0);
   const [agencyName, setAgencyName] = useState("");
+  const [agencyProduct, setAgencyProductDraft] = useState<number | null>(null);
+  const newAgencyProduct = agencyProduct ?? products[0]?.id ?? null;
   const [teamDrafts, setTeamDrafts] = useState<Record<number, string>>({});
   const dialog = useAppDialog();
 
@@ -137,9 +147,10 @@ function StructureSection({ agencies, teams, members }: { agencies: Agency[]; te
 
   return (
     <article className="panel team-panel">
-      <div className="team-panel-heading"><span className="team-icon"><Building2 size={18} /></span><div><h2>Agências e equipes</h2><p>Cada agência tem um gerente; cada equipe, um líder de grupo.</p></div></div>
-      <form className="team-inline-form" onSubmit={(event) => { event.preventDefault(); void run(() => createAgency.mutateAsync({ name: agencyName }), "Agência criada.", "Não foi possível criar a agência.").then((ok) => ok && setAgencyName("")); }}>
+      <div className="team-panel-heading"><span className="team-icon"><Building2 size={18} /></span><div><h2>Agências e equipes</h2><p>Cada agência vende um produto e tem um gerente; cada equipe, um líder de grupo. Cadastre os produtos em Personalizar.</p></div></div>
+      <form className="team-inline-form" onSubmit={(event) => { event.preventDefault(); void run(() => createAgency.mutateAsync({ name: agencyName, productId: newAgencyProduct }), "Agência criada.", "Não foi possível criar a agência.").then((ok) => ok && (setAgencyName(""), void utils.workspace.get.invalidate())); }}>
         <label className="field"><span>Nova agência</span><input value={agencyName} maxLength={120} onChange={(event) => setAgencyName(event.target.value)} placeholder="Ex.: Agência Centro" /></label>
+        {products.length > 0 && <label className="field"><span>Produto que vai vender</span><select value={newAgencyProduct ?? ""} onChange={(event) => setAgencyProductDraft(Number(event.target.value))}>{products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select></label>}
         <button type="submit" className="button button-outline" disabled={agencyName.trim().length < 2 || createAgency.isPending}><Plus size={15} />Adicionar</button>
       </form>
       {!agencies.length && <p className="team-empty">Nenhuma agência ainda. Crie a primeira para montar as equipes.</p>}
@@ -151,6 +162,7 @@ function StructureSection({ agencies, teams, members }: { agencies: Agency[]; te
             <section className="agency-card" key={agency.id}>
               <header>
                 <strong>{agency.name}</strong><small>{agencyTeams.length} {agencyTeams.length === 1 ? "equipe" : "equipes"} · {people} {people === 1 ? "pessoa" : "pessoas"}</small>
+                {products.length > 0 && <select className="agency-product" aria-label={`Produto vendido por ${agency.name}`} title="Produto vendido pela agência" value={agency.productId ?? ""} disabled={setAgencyProduct.isPending} onChange={(event) => void run(async () => { await setAgencyProduct.mutateAsync({ id: agency.id, productId: Number(event.target.value) }); await Promise.all([utils.workspace.get.invalidate(), utils.clients.list.invalidate()]); }, `${agency.name} agora vende ${products.find((product) => product.id === Number(event.target.value))?.name}. Os novos atendimentos usam esse pipeline.`, "Não foi possível trocar o produto.")}>{!agency.productId && <option value="">Escolha o produto</option>}{products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select>}
                 <span className="icon-actions">
                   <button type="button" title="Renomear agência" aria-label={`Renomear ${agency.name}`} onClick={() => void rename("agência", agency.name, (name) => renameAgency.mutateAsync({ id: agency.id, name }))}><Pencil size={14} /></button>
                   <button type="button" className="danger" title="Excluir agência" aria-label={`Excluir ${agency.name}`} onClick={() => void remove("agência", agency.name, () => deleteAgency.mutateAsync({ id: agency.id }))}><Trash2 size={14} /></button>

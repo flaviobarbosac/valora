@@ -32,17 +32,16 @@ export async function getCompanySettings(companyId: number) {
     accentColor: row?.accentColor ?? null,
     logoDataUrl: row?.logoDataUrl ?? null,
     roleLabels: parseMap(row?.roleLabels),
-    stageLabels: parseMap(row?.stageLabels),
   };
 }
 
 export type SettingsInput = {
   displayName: string | null; primaryColor: string | null; darkColor: string | null; accentColor: string | null;
-  logoDataUrl: string | null; roleLabels: Record<string, string>; stageLabels: Record<string, string>;
+  logoDataUrl: string | null; roleLabels: Record<string, string>;
 };
 
 export async function saveCompanySettings(companyId: number, values: SettingsInput) {
-  const row = { ...values, roleLabels: JSON.stringify(values.roleLabels), stageLabels: JSON.stringify(values.stageLabels) };
+  const row = { ...values, roleLabels: JSON.stringify(values.roleLabels) };
   await (await db()).insert(companySettings).values({ companyId, ...row }).onDuplicateKeyUpdate({ set: row });
 }
 

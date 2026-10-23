@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { clientRecords, companyMembers, notifications, promotionRequests, recordNotes, type InsertUser, type User, userGoals, userProfiles, users } from "../drizzle/schema";
+import { clientRecords, companyMembers, companyProducts, customers, notifications, promotionRequests, recordNotes, type InsertUser, type User, userGoals, userProfiles, userSettings, users } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -114,6 +114,9 @@ export async function deleteUserAndData(openId: string) {
     await tx.update(promotionRequests).set({ status: "cancelled" })
       .where(and(eq(promotionRequests.targetOpenId, openId), inArray(promotionRequests.status, ["pending_manager", "pending_admin"])));
     await tx.delete(companyMembers).where(eq(companyMembers.userOpenId, openId));
+    await tx.delete(customers).where(eq(customers.ownerOpenId, openId));
+    await tx.delete(userSettings).where(eq(userSettings.ownerOpenId, openId));
+    await tx.delete(companyProducts).where(and(isNull(companyProducts.companyId), eq(companyProducts.ownerOpenId, openId)));
     await tx.delete(users).where(eq(users.openId, openId));
   });
 }
@@ -167,8 +170,8 @@ export async function createClientRecord(
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
-  await db.insert(clientRecords).values({ ...values, ownerOpenId });
-  return { success: true } as const;
+  const [result] = await db.insert(clientRecords).values({ ...values, ownerOpenId }).$returningId();
+  return result.id;
 }
 
 export async function updateClientRecord(

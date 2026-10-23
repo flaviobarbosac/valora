@@ -4,9 +4,9 @@ import { addDaysISO, needsCallReminder, outcomeOf } from "../client/src/lib/foll
 
 const record = (overrides: Partial<ClientRecord> = {}): ClientRecord => ({
   id: 1, reference: "VLR-1", name: "Fulano de Tal", contact: null, contactDate: "2026-10-10",
-  hasCreditLimit: "unknown", saleStatus: "pending", lastProductSold: null, productClass: null,
-  isBankCustomer: "unknown", objection: null, objectionNotes: null, interestedWithoutLimit: false,
-  stage: "new", followUpDate: null, remindAfter: null, createdAt: "", updatedAt: "", ownerName: "Eu", isMine: true,
+  saleStatus: "pending", lastProductSold: null, objection: null, objectionNotes: null,
+  stage: "new", followUpDate: null, remindAfter: null, productId: null, customerId: null, customFields: {},
+  createdAt: "", updatedAt: "", ownerName: "Eu", isMine: true, canEdit: true, canReview: false, lastRating: null, noteCount: 0,
   ...overrides,
 });
 
@@ -39,5 +39,16 @@ describe("lembrete de 3 dias", () => {
 
   it("adds days across month boundaries", () => {
     expect(addDaysISO("2026-10-30", 3)).toBe("2026-11-02");
+  });
+});
+
+describe("lembrete configurável", () => {
+  it("uses the workspace's days and the product's callback reasons", () => {
+    expect(needsCallReminder(record(), "2026-10-14", 5)).toBe(false);
+    expect(needsCallReminder(record(), "2026-10-15", 5)).toBe(true);
+    expect(needsCallReminder(record(), "2026-12-31", 0)).toBe(false);
+    const custom = (key: string) => key === "sem_verba_agora";
+    expect(outcomeOf(record({ saleStatus: "not_sold", objection: "sem_verba_agora" }), custom)).toBe("callback");
+    expect(outcomeOf(record({ saleStatus: "not_sold", objection: "thinking" }), custom)).toBe("failed");
   });
 });

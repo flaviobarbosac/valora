@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { ArrowRight, CalendarDays, CheckCircle2, CircleDollarSign, Clock3, Phone, Target } from "lucide-react";
-import { objectionLabel, stageLabel, type ClientRecord } from "@/lib/client-types";
+import type { ClientRecord } from "@/lib/client-types";
+import { cardFields, reasonLabel, stageName, useWorkspace } from "@/lib/workspace";
+import { formatCustomValue } from "@shared/pipeline";
 import { normalizePhoneContact } from "@/lib/contact-format";
 
 type FollowUpRecord = ClientRecord & { followUpDate: string };
@@ -34,10 +36,8 @@ const shiftDate = (value: string, offset: number) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 };
 
-const creditLabel = (value: ClientRecord["hasCreditLimit"]) =>
-  value === "yes" ? "Tem limite" : value === "no" ? "Sem limite" : "Limite não verificado";
-
 function FollowUpGroup({ title, description, icon: Icon, tone, records, onEdit }: GroupProps) {
+  const { productOf } = useWorkspace();
   return (
     <section className={`agenda-group agenda-group-${tone}`}>
       <header className="agenda-group-heading">
@@ -51,6 +51,8 @@ function FollowUpGroup({ title, description, icon: Icon, tone, records, onEdit }
           const phone = normalizePhoneContact(contact);
           const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact);
           const date = record.followUpDate;
+          const product = productOf(record);
+          const field = cardFields(product).find((item) => record.customFields[item.key]);
           return (
             <article className="agenda-card" key={record.id}>
               <div className="agenda-card-topline">
@@ -69,10 +71,10 @@ function FollowUpGroup({ title, description, icon: Icon, tone, records, onEdit }
                 {phone === null && isEmail && <a href={`mailto:${contact}`}>Enviar e-mail</a>}
               </div>
               <div className="agenda-meta-row">
-                <span><Target size={13} />{stageLabel(record.stage)}</span>
-                <span><CircleDollarSign size={13} />{creditLabel(record.hasCreditLimit)}</span>
+                <span><Target size={13} />{stageName(product, record.stage)}</span>
+                {field && <span><CircleDollarSign size={13} />{field.label}: {formatCustomValue(field, record.customFields[field.key])}</span>}
               </div>
-              {record.objection && <p className="agenda-objection">Última objeção: {objectionLabel(record.objection)}</p>}
+              {record.objection && <p className="agenda-objection">Última objeção: {reasonLabel(product, record.objection)}</p>}
               <button type="button" className="agenda-edit-button" onClick={() => onEdit(record)}>
                 Revisar ou reagendar <ArrowRight size={14} />
               </button>

@@ -17,8 +17,9 @@ import { nanoid } from "nanoid";
 import { inArray, like } from "drizzle-orm";
 import {
   agencies, clientRecords, companies, companyMembers, companyPositions, companySettings, notifications,
-  promotionRequests, recordNotes, teams, userGoals, userProfiles, users, type ClientStage, type CompanyRole,
+  promotionRequests, recordNotes, teams, userGoals, userProfiles, users, companyProducts, customers, type CompanyRole,
 } from "../../drizzle/schema";
+import { templateByKey, type ProductConfig } from "@shared/pipeline";
 import { getDb } from "../db";
 import { hashPassword } from "../_core/password";
 
@@ -38,8 +39,8 @@ const PEOPLE: Person[] = [
   { key: "aline", name: "Aline Santos", email: `aline.santos@${DOMAIN}`, role: "member", agency: "centro", team: "azul", position: "Consultor Sênior", job: "Consultora sênior" },
   { key: "marcos", name: "Marcos Vieira", email: `marcos.vieira@${DOMAIN}`, role: "member", agency: "centro", team: "verde", position: "Atendente", job: "Atendente de crédito" },
   { key: "patricia", name: "Patrícia Gomes", email: `patricia.gomes@${DOMAIN}`, role: "member", agency: "centro", team: "verde", position: "Atendente", job: "Atendente de crédito" },
-  { key: "rafael", name: "Rafael Nunes", email: `rafael.nunes@${DOMAIN}`, role: "member", agency: "norte", team: "sol", position: "Atendente", job: "Atendente de crédito" },
-  { key: "sofia", name: "Sofia Martins", email: `sofia.martins@${DOMAIN}`, role: "member", agency: "norte", team: "sol", position: "Consultor Sênior", job: "Consultora sênior" },
+  { key: "rafael", name: "Rafael Nunes", email: `rafael.nunes@${DOMAIN}`, role: "member", agency: "norte", team: "sol", position: "Atendente", job: "Corretor de seguros" },
+  { key: "sofia", name: "Sofia Martins", email: `sofia.martins@${DOMAIN}`, role: "member", agency: "norte", team: "sol", position: "Consultor Sênior", job: "Corretora sênior de seguros" },
 ];
 
 const CLIENT_NAMES = [
@@ -48,10 +49,21 @@ const CLIENT_NAMES = [
   "Raquel Duarte", "Sérgio Batista", "Tatiane Freitas", "Vinícius Correia", "Yasmin Rezende", "Wagner Pinto", "Larissa Campos", "Otávio Farias",
   "Priscila Moura", "Renato Siqueira", "Simone Vasconcelos", "Thiago Brandão", "Úrsula Medeiros", "Valéria Nogueira", "Zeca Andrade",
 ];
-const PRODUCTS = [
-  { name: "Consignado INSS", cls: "consignado" }, { name: "Empréstimo pessoal", cls: "pessoal" }, { name: "Cartão consignado com saque", cls: "cartao_consignado" },
-  { name: "Portabilidade de consignado", cls: "refinanciamento" }, { name: "Crédito com garantia", cls: "outros" },
-] as const;
+// Agência Centro vende crédito; Agência Norte vende seguros (cada agência tem o seu produto e pipeline).
+const AGENCY_PRODUCTS = {
+  centro: { name: "Crédito consignado", template: "credito" },
+  norte: { name: "Seguros", template: "seguros" },
+} as const;
+const SOLD_ITEMS = {
+  centro: ["Consignado INSS", "Empréstimo pessoal", "Cartão consignado", "Portabilidade", "Refinanciamento"],
+  norte: ["Seguro auto", "Seguro de vida", "Seguro residencial"],
+};
+const CLASSES: Record<string, string> = {
+  "Consignado INSS": "Empréstimo consignado", "Empréstimo pessoal": "Empréstimo pessoal", "Cartão consignado": "Cartão consignado / saque",
+  Portabilidade: "Refinanciamento / portabilidade", Refinanciamento: "Refinanciamento / portabilidade",
+};
+const STREETS = ["Rua das Flores", "Av. Paulista", "Rua XV de Novembro", "Rua da Consolação", "Av. Brasil", "Rua Augusta", "Rua Oscar Freire"];
+const DISTRICTS = ["Centro", "Bela Vista", "Jardins", "Pinheiros", "Moema", "Santana", "Tatuapé"];
 
 // Deterministic pseudo-random numbers so every run builds the same story.
 let seed = 42;
@@ -60,14 +72,21 @@ const pick = <T,>(items: readonly T[]) => items[Math.floor(rand() * items.length
 const iso = (daysAgo: number) => { const date = new Date(); date.setDate(date.getDate() - daysAgo); return date.toISOString().slice(0, 10); };
 const phone = () => `(11) 9${Math.floor(1000 + rand() * 8999)}-${Math.floor(1000 + rand() * 8999)}`;
 
-type RecordPlan = { stage: ClientStage; saleStatus: "sold" | "not_sold" | "pending"; objection?: string; followUp?: number | null; technical?: boolean };
+/** `open` is the position among the product's "em andamento" stages; reasons are product reason keys. */
+type RecordPlan = { kind: "won" | "lost" | "open"; open?: number; reason?: { centro: string; norte: string }; followUp?: number | null };
 const PLANS: RecordPlan[] = [
-  { stage: "sold", saleStatus: "sold" }, { stage: "sold", saleStatus: "sold" },
-  { stage: "negotiation", saleStatus: "pending", followUp: 2 }, { stage: "contacted", saleStatus: "pending", followUp: 0 },
-  { stage: "new", saleStatus: "pending", followUp: null }, { stage: "awaiting_limit", saleStatus: "pending", followUp: 6 },
-  { stage: "lost", saleStatus: "not_sold", objection: "rate" }, { stage: "lost", saleStatus: "not_sold", objection: "thinking", followUp: -2 },
-  { stage: "contacted", saleStatus: "pending", objection: "later", followUp: null }, { stage: "negotiation", saleStatus: "pending", followUp: -1 },
+  { kind: "won" }, { kind: "won" },
+  { kind: "open", open: 2, followUp: 2 }, { kind: "open", open: 1, followUp: 0 },
+  { kind: "open", open: 0, followUp: null }, { kind: "open", open: 3, followUp: 6 },
+  { kind: "lost", reason: { centro: "rate", norte: "preco" } }, { kind: "lost", reason: { centro: "thinking", norte: "vai_pensar" }, followUp: -2 },
+  { kind: "open", open: 1, reason: { centro: "later", norte: "retornar" }, followUp: null }, { kind: "open", open: 2, followUp: -1 },
 ];
+
+function stageFor(config: ProductConfig, plan: RecordPlan) {
+  if (plan.kind !== "open") return config.stages.find((stage) => stage.kind === plan.kind)!;
+  const open = config.stages.filter((stage) => stage.kind === "open");
+  return open[Math.min(plan.open ?? 0, open.length - 1)];
+}
 
 async function main() {
   const { values } = parseArgs({ options: { arquivo: { type: "string" } } });
@@ -87,7 +106,9 @@ async function main() {
     await db.delete(notifications).where(inArray(notifications.userOpenId, oldIds));
     await db.delete(userGoals).where(inArray(userGoals.ownerOpenId, oldIds));
     await db.delete(userProfiles).where(inArray(userProfiles.ownerOpenId, oldIds));
+    await db.delete(customers).where(inArray(customers.ownerOpenId, oldIds));
     if (companyIds.length) {
+      await db.delete(companyProducts).where(inArray(companyProducts.companyId, companyIds));
       for (const table of [promotionRequests, companyPositions, companyMembers, teams, agencies] as const) await db.delete(table).where(inArray(table.companyId, companyIds));
       await db.delete(companySettings).where(inArray(companySettings.companyId, companyIds));
       await db.delete(companies).where(inArray(companies.id, companyIds));
@@ -105,8 +126,14 @@ async function main() {
   // 3. Empresa, agências, equipes, cargos.
   const [company] = await db.insert(companies).values({ name: COMPANY, createdByOpenId: ids.admin }).$returningId();
   await db.insert(companySettings).values({ companyId: company.id, displayName: "Banco Exemplo", roleLabels: JSON.stringify({ leader: "Supervisor de equipe" }), stageLabels: "{}" });
-  const [centro] = await db.insert(agencies).values({ companyId: company.id, name: "Agência Centro" }).$returningId();
-  const [norte] = await db.insert(agencies).values({ companyId: company.id, name: "Agência Norte" }).$returningId();
+  const productOf = {} as Record<"centro" | "norte", { id: number; config: ProductConfig }>;
+  for (const [index, key] of (["centro", "norte"] as const).entries()) {
+    const template = templateByKey(AGENCY_PRODUCTS[key].template);
+    const [row] = await db.insert(companyProducts).values({ companyId: company.id, name: AGENCY_PRODUCTS[key].name, template: template.key, color: template.color, config: JSON.stringify(template.config), sortOrder: index }).$returningId();
+    productOf[key] = { id: row.id, config: template.config };
+  }
+  const [centro] = await db.insert(agencies).values({ companyId: company.id, name: "Agência Centro", productId: productOf.centro.id }).$returningId();
+  const [norte] = await db.insert(agencies).values({ companyId: company.id, name: "Agência Norte", productId: productOf.norte.id }).$returningId();
   const agencyId = { centro: centro.id, norte: norte.id };
   const [azul] = await db.insert(teams).values({ companyId: company.id, agencyId: centro.id, name: "Equipe Azul" }).$returningId();
   const [verde] = await db.insert(teams).values({ companyId: company.id, agencyId: centro.id, name: "Equipe Verde" }).$returningId();
@@ -133,18 +160,42 @@ async function main() {
   for (const person of PEOPLE.filter((item) => item.role === "member" || item.role === "leader")) {
     const plans = person.role === "leader" ? PLANS.slice(0, 5) : [...PLANS, ...PLANS.slice(0, 2 + Math.floor(rand() * 3))];
     recordIds[person.key] = [];
+    const agency = person.agency ?? "centro";
+    const product = productOf[agency];
     for (const [index, plan] of plans.entries()) {
       const daysAgo = index < 3 ? Math.floor(rand() * 4) : 3 + Math.floor(rand() * 28);
-      const product = plan.saleStatus === "sold" ? pick(PRODUCTS) : null;
-      const noLimit = plan.stage === "awaiting_limit";
-      const technical = person.agency === "centro" && person.role === "member" && index === 4;
+      const technical = agency === "centro" && person.role === "member" && index === 4;
+      const stage = technical ? product.config.stages.find((item) => item.kind === "handoff")! : stageFor(product.config, plan);
+      const item = stage.kind === "won" ? pick(SOLD_ITEMS[agency]) : null;
+      const reason = plan.reason?.[agency] ?? (stage.key === "awaiting_limit" ? "no_limit" : null);
+      const fields: Record<string, string> = agency === "centro"
+        ? {
+            limite: stage.key === "awaiting_limit" ? "Não tem limite" : stage.kind === "won" ? "Sim, tem limite" : pick(["Sim, tem limite", "Ainda não verificado"]),
+            cliente_banco: pick(["Sim, já é cliente", "Ainda não é cliente", "Não informado"]),
+            ...(stage.key === "awaiting_limit" ? { interesse_sem_limite: "sim" } : {}),
+            ...(item ? { classe: CLASSES[item] } : {}),
+          }
+        : {
+            tipo_seguro: item ? item.replace("Seguro ", "").replace(/^./, (letter) => letter.toUpperCase()) : pick(["Auto", "Vida", "Residencial"]),
+            premio: String(Math.round(800 + rand() * 4200)),
+            ...(rand() > 0.5 ? { vencimento: iso(-Math.floor(rand() * 60)) } : {}),
+          };
+      const name = CLIENT_NAMES[clientIndex++ % CLIENT_NAMES.length];
+      const contact = phone();
+      // Os primeiros clientes de cada pessoa já estão cadastrados (Clientes cadastrados).
+      const customerId = index < 4
+        ? (await db.insert(customers).values({
+            ownerOpenId: ids[person.key], name, phone: contact, email: `${name.split(" ")[0].normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()}@exemplo.com.br`,
+            address: `${pick(STREETS)}, ${100 + Math.floor(rand() * 1900)}`, district: pick(DISTRICTS), city: "São Paulo", state: "SP",
+            zip: `0${Math.floor(1000 + rand() * 8999)}-${Math.floor(100 + rand() * 899)}`,
+            birthDate: iso(365 * (25 + Math.floor(rand() * 40))), notes: index === 0 ? "Prefere contato por WhatsApp à tarde." : null,
+          }).$returningId())[0].id
+        : null;
       const [row] = await db.insert(clientRecords).values({
-        ownerOpenId: ids[person.key], reference: `VLR-DEMO-${reference++}`, name: CLIENT_NAMES[clientIndex++ % CLIENT_NAMES.length],
-        contact: phone(), contactDate: iso(daysAgo), hasCreditLimit: noLimit ? "no" : plan.saleStatus === "sold" ? "yes" : pick(["yes", "unknown"] as const),
-        saleStatus: plan.saleStatus, lastProductSold: product?.name ?? null, productClass: product?.cls ?? null,
-        isBankCustomer: pick(["yes", "no", "unknown"] as const), objection: (plan.objection ?? (noLimit ? "no_limit" : null)) as never,
-        objectionNotes: plan.objection === "thinking" ? "Vai conversar com a família antes de decidir." : null,
-        interestedWithoutLimit: noLimit, stage: technical ? "technical" : plan.stage,
+        ownerOpenId: ids[person.key], reference: `VLR-DEMO-${reference++}`, name, contact, contactDate: iso(daysAgo),
+        saleStatus: stage.kind === "won" ? "sold" : stage.kind === "lost" ? "not_sold" : "pending", lastProductSold: item,
+        objection: reason, objectionNotes: reason === "thinking" || reason === "vai_pensar" ? "Vai conversar com a família antes de decidir." : null,
+        stage: stage.key, productId: product.id, customerId, customFields: JSON.stringify(fields),
         followUpDate: plan.followUp === undefined || plan.followUp === null ? null : iso(-plan.followUp),
       }).$returningId();
       recordIds[person.key].push(row.id);

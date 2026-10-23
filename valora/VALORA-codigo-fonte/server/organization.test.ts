@@ -46,6 +46,8 @@ const mail = vi.hoisted(() => ({ isMailConfigured: vi.fn(() => false), sendInvit
 vi.mock("./orgDb", () => org);
 vi.mock("./db", () => db);
 vi.mock("./_core/mailer", () => mail);
+const ws = vi.hoisted(() => ({ createProduct: vi.fn(async () => 1), listProducts: vi.fn(async () => [{ id: 1 }]), getWorkspaceProduct: vi.fn(async () => ({ id: 1 })) }));
+vi.mock("./workspaceDb", () => ws);
 vi.mock("./featuresDb", () => ({ getCompanySettings: vi.fn(async () => ({ roleLabels: {}, stageLabels: {}, displayName: null })), latestRatings: vi.fn(async () => new Map()), noteCounts: vi.fn(async () => new Map()) }));
 
 import { appRouter } from "./routers";
@@ -82,10 +84,12 @@ beforeEach(() => {
 
 describe("company administration permissions", () => {
   it("lets someone without a company create one and become its admin", async () => {
-    org.getMembership.mockResolvedValue(undefined);
+    org.getMembership.mockResolvedValueOnce(undefined).mockResolvedValue(member({ companyId: 10 }));
     org.createCompanyWithAdmin.mockResolvedValue(10);
-    await expect(callerFor(user()).organization.createCompany({ name: "Banco X" })).resolves.toEqual({ companyId: 10 });
-    expect(org.createCompanyWithAdmin).toHaveBeenCalledWith("me", "Banco X");
+    await expect(callerFor(user()).organization.createCompany({ name: "Imobiliária X", template: "imoveis" })).resolves.toEqual({ companyId: 10 });
+    expect(org.createCompanyWithAdmin).toHaveBeenCalledWith("me", "Imobiliária X");
+    // The company starts with one product, from the template of what it sells.
+    expect(ws.createProduct).toHaveBeenCalledWith(expect.objectContaining({ kind: "company", companyId: 10 }), expect.objectContaining({ name: "Imóveis", template: "imoveis" }));
   });
 
   it("refuses a second company for someone already in one", async () => {
