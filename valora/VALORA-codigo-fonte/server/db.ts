@@ -7,7 +7,7 @@ let _db: ReturnType<typeof drizzle> | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle({ connection: { connectionString: process.env.DATABASE_URL, max: 10 } });
+      _db = drizzle({ connection: { connectionString: process.env.DATABASE_URL, max: Number(process.env.DATABASE_POOL_MAX) || 10 } });
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;

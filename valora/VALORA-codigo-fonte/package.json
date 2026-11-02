@@ -12,6 +12,7 @@
     "test": "vitest run",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "db:migrate": "drizzle-kit migrate",
+    "db:migrate:schema": "tsx server/scripts/migrar.ts",
     "usuarios": "tsx server/scripts/usuarios.ts",
     "email:teste": "tsx server/scripts/testarEmail.ts",
     "demo": "tsx server/scripts/demo.ts",
