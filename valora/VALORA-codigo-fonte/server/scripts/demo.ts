@@ -124,25 +124,25 @@ async function main() {
   await db.insert(userProfiles).values(PEOPLE.map((person) => ({ ownerOpenId: ids[person.key], displayName: person.name, jobTitle: person.job })));
 
   // 3. Empresa, agências, equipes, cargos.
-  const [company] = await db.insert(companies).values({ name: COMPANY, createdByOpenId: ids.admin }).$returningId();
+  const [company] = await db.insert(companies).values({ name: COMPANY, createdByOpenId: ids.admin }).returning({ id: companies.id });
   await db.insert(companySettings).values({ companyId: company.id, displayName: "Banco Exemplo", roleLabels: JSON.stringify({ leader: "Supervisor de equipe" }), stageLabels: "{}" });
   const productOf = {} as Record<"centro" | "norte", { id: number; config: ProductConfig }>;
   for (const [index, key] of (["centro", "norte"] as const).entries()) {
     const template = templateByKey(AGENCY_PRODUCTS[key].template);
-    const [row] = await db.insert(companyProducts).values({ companyId: company.id, name: AGENCY_PRODUCTS[key].name, template: template.key, color: template.color, config: JSON.stringify(template.config), sortOrder: index }).$returningId();
+    const [row] = await db.insert(companyProducts).values({ companyId: company.id, name: AGENCY_PRODUCTS[key].name, template: template.key, color: template.color, config: JSON.stringify(template.config), sortOrder: index }).returning({ id: companyProducts.id });
     productOf[key] = { id: row.id, config: template.config };
   }
-  const [centro] = await db.insert(agencies).values({ companyId: company.id, name: "Agência Centro", productId: productOf.centro.id }).$returningId();
-  const [norte] = await db.insert(agencies).values({ companyId: company.id, name: "Agência Norte", productId: productOf.norte.id }).$returningId();
+  const [centro] = await db.insert(agencies).values({ companyId: company.id, name: "Agência Centro", productId: productOf.centro.id }).returning({ id: agencies.id });
+  const [norte] = await db.insert(agencies).values({ companyId: company.id, name: "Agência Norte", productId: productOf.norte.id }).returning({ id: agencies.id });
   const agencyId = { centro: centro.id, norte: norte.id };
-  const [azul] = await db.insert(teams).values({ companyId: company.id, agencyId: centro.id, name: "Equipe Azul" }).$returningId();
-  const [verde] = await db.insert(teams).values({ companyId: company.id, agencyId: centro.id, name: "Equipe Verde" }).$returningId();
-  const [sol] = await db.insert(teams).values({ companyId: company.id, agencyId: norte.id, name: "Equipe Sol" }).$returningId();
+  const [azul] = await db.insert(teams).values({ companyId: company.id, agencyId: centro.id, name: "Equipe Azul" }).returning({ id: teams.id });
+  const [verde] = await db.insert(teams).values({ companyId: company.id, agencyId: centro.id, name: "Equipe Verde" }).returning({ id: teams.id });
+  const [sol] = await db.insert(teams).values({ companyId: company.id, agencyId: norte.id, name: "Equipe Sol" }).returning({ id: teams.id });
   const teamId = { azul: azul.id, verde: verde.id, sol: sol.id };
   const positionDefs: [string, CompanyRole][] = [["Atendente", "member"], ["Consultor Sênior", "member"], ["Supervisor", "leader"], ["Gerente de agência", "manager"], ["Diretor", "admin"]];
   const positionId: Record<string, number> = {};
   for (const [index, [name, level]] of positionDefs.entries()) {
-    const [row] = await db.insert(companyPositions).values({ companyId: company.id, name, level, sortOrder: index }).$returningId();
+    const [row] = await db.insert(companyPositions).values({ companyId: company.id, name, level, sortOrder: index }).returning({ id: companyPositions.id });
     positionId[name] = row.id;
   }
   await db.insert(companyMembers).values(PEOPLE.map((person) => ({
@@ -189,7 +189,7 @@ async function main() {
             address: `${pick(STREETS)}, ${100 + Math.floor(rand() * 1900)}`, district: pick(DISTRICTS), city: "São Paulo", state: "SP",
             zip: `0${Math.floor(1000 + rand() * 8999)}-${Math.floor(100 + rand() * 899)}`,
             birthDate: iso(365 * (25 + Math.floor(rand() * 40))), notes: index === 0 ? "Prefere contato por WhatsApp à tarde." : null,
-          }).$returningId())[0].id
+          }).returning({ id: customers.id }))[0].id
         : null;
       const [row] = await db.insert(clientRecords).values({
         ownerOpenId: ids[person.key], reference: `VLR-DEMO-${reference++}`, name, contact, contactDate: iso(daysAgo),
@@ -197,7 +197,7 @@ async function main() {
         objection: reason, objectionNotes: reason === "thinking" || reason === "vai_pensar" ? "Vai conversar com a família antes de decidir." : null,
         stage: stage.key, productId: product.id, customerId, customFields: JSON.stringify(fields),
         followUpDate: plan.followUp === undefined || plan.followUp === null ? null : iso(-plan.followUp),
-      }).$returningId();
+      }).returning({ id: clientRecords.id });
       recordIds[person.key].push(row.id);
     }
   }

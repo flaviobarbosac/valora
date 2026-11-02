@@ -42,7 +42,7 @@ export type SettingsInput = {
 
 export async function saveCompanySettings(companyId: number, values: SettingsInput) {
   const row = { ...values, roleLabels: JSON.stringify(values.roleLabels) };
-  await (await db()).insert(companySettings).values({ companyId, ...row }).onDuplicateKeyUpdate({ set: row });
+  await (await db()).insert(companySettings).values({ companyId, ...row }).onConflictDoUpdate({ target: companySettings.companyId, set: row });
 }
 
 // ---------- Cargos ----------
@@ -58,7 +58,7 @@ export async function getPosition(companyId: number, id: number) {
 
 export async function createPosition(companyId: number, name: string, level: CompanyRole) {
   const existing = await listPositions(companyId);
-  const [result] = await (await db()).insert(companyPositions).values({ companyId, name, level, sortOrder: existing.length }).$returningId();
+  const [result] = await (await db()).insert(companyPositions).values({ companyId, name, level, sortOrder: existing.length }).returning({ id: companyPositions.id });
   return result.id;
 }
 
@@ -92,7 +92,7 @@ export async function setMemberPosition(companyId: number, openId: string, posit
 export async function createPromotionRequest(values: {
   companyId: number; targetOpenId: string; requestedByOpenId: string; toPositionId: number; reason: string; raiseNote: string | null; status: PromotionStatus;
 }) {
-  const [result] = await (await db()).insert(promotionRequests).values(values).$returningId();
+  const [result] = await (await db()).insert(promotionRequests).values(values).returning({ id: promotionRequests.id });
   return result.id;
 }
 
@@ -130,7 +130,7 @@ export async function applyPromotion(id: number, companyId: number, targetOpenId
 // ---------- Avaliações e cobranças ----------
 
 export async function addRecordNote(values: { recordId: number; authorOpenId: string; kind: "cobranca" | "avaliacao" | "comentario"; rating: number | null; body: string }) {
-  const [result] = await (await db()).insert(recordNotes).values(values).$returningId();
+  const [result] = await (await db()).insert(recordNotes).values(values).returning({ id: recordNotes.id });
   return result.id;
 }
 
@@ -196,7 +196,7 @@ export async function markNotificationsRead(userOpenId: string, ids: number[] | 
 // ---------- Relatos de erro ----------
 
 export async function createBugReport(values: { reporterOpenId: string | null; email: string | null; category: string; description: string; pageUrl: string | null; userAgent: string | null; technicalLog: string | null }) {
-  const [result] = await (await db()).insert(bugReports).values(values).$returningId();
+  const [result] = await (await db()).insert(bugReports).values(values).returning({ id: bugReports.id });
   return result.id;
 }
 

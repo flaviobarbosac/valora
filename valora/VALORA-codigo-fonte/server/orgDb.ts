@@ -77,8 +77,8 @@ export async function agencyPerformance(companyId: number, month: string, onlyAg
         conn
           .select({
             owner: clientRecords.ownerOpenId,
-            served: sql<number>`SUM(CASE WHEN ${clientRecords.contactDate} LIKE ${`${month}-%`} THEN 1 ELSE 0 END)`,
-            sold: sql<number>`SUM(CASE WHEN ${clientRecords.contactDate} LIKE ${`${month}-%`} AND ${clientRecords.saleStatus} = 'sold' THEN 1 ELSE 0 END)`,
+            served: sql<number>`SUM(CASE WHEN ${clientRecords.contactDate}::text LIKE ${`${month}-%`} THEN 1 ELSE 0 END)`,
+            sold: sql<number>`SUM(CASE WHEN ${clientRecords.contactDate}::text LIKE ${`${month}-%`} AND ${clientRecords.saleStatus} = 'sold' THEN 1 ELSE 0 END)`,
             technical: sql<number>`SUM(CASE WHEN ${clientRecords.stage} = 'technical' THEN 1 ELSE 0 END)`,
           })
           .from(clientRecords)
@@ -159,7 +159,7 @@ export async function listPendingInvitations(companyId: number) {
 export async function createCompanyWithAdmin(openId: string, name: string) {
   const conn = await db();
   return conn.transaction(async (tx) => {
-    const [result] = await tx.insert(companies).values({ name, createdByOpenId: openId }).$returningId();
+    const [result] = await tx.insert(companies).values({ name, createdByOpenId: openId }).returning({ id: companies.id });
     await tx.insert(companyMembers).values({ companyId: result.id, userOpenId: openId, role: "admin" });
     return result.id;
   });
@@ -289,7 +289,7 @@ export async function createInvitation(values: {
     // Only the newest invitation for an e-mail stays valid.
     await tx.update(invitations).set({ revokedAt: new Date() })
       .where(and(eq(invitations.companyId, values.companyId), eq(invitations.email, values.email), isNull(invitations.acceptedAt), isNull(invitations.revokedAt)));
-    const [result] = await tx.insert(invitations).values({ ...rest, ...placement }).$returningId();
+    const [result] = await tx.insert(invitations).values({ ...rest, ...placement }).returning({ id: invitations.id });
     return result.id;
   });
 }

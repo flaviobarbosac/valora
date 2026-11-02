@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { clientRecords, companyMembers, companyProducts, customers, notifications, promotionRequests, recordNotes, type InsertUser, type User, userGoals, userProfiles, userSettings, users } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -7,7 +7,7 @@ let _db: ReturnType<typeof drizzle> | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      _db = drizzle({ connection: { connectionString: process.env.DATABASE_URL, max: 10 } });
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -170,7 +170,7 @@ export async function createClientRecord(
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
-  const [result] = await db.insert(clientRecords).values({ ...values, ownerOpenId }).$returningId();
+  const [result] = await db.insert(clientRecords).values({ ...values, ownerOpenId }).returning({ id: clientRecords.id });
   return result.id;
 }
 
@@ -215,7 +215,8 @@ export async function getOwnerGoals(ownerOpenId: string) {
 export async function saveOwnerGoals(ownerOpenId: string, values: { monthlyContactTarget: number; monthlySaleTarget: number }) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
-  await db.insert(userGoals).values({ ownerOpenId, ...values }).onDuplicateKeyUpdate({
+  await db.insert(userGoals).values({ ownerOpenId, ...values }).onConflictDoUpdate({
+    target: userGoals.ownerOpenId,
     set: { ...values, updatedAt: new Date() },
   });
   return { success: true } as const;
@@ -231,7 +232,8 @@ export async function getOwnerProfile(ownerOpenId: string) {
 export async function saveOwnerProfile(ownerOpenId: string, values: { displayName: string; jobTitle: string; avatarDataUrl: string | null }) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
-  await db.insert(userProfiles).values({ ownerOpenId, ...values }).onDuplicateKeyUpdate({
+  await db.insert(userProfiles).values({ ownerOpenId, ...values }).onConflictDoUpdate({
+    target: userProfiles.ownerOpenId,
     set: { ...values, updatedAt: new Date() },
   });
   return { success: true } as const;

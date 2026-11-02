@@ -54,13 +54,13 @@ export async function getWorkspaceProduct(space: Workspace, id: number) {
 
 export async function createProduct(space: Workspace, values: { name: string; template: string; color: string | null; config?: ProductConfig }) {
   const conn = await db();
-  const [{ count }] = await conn.select({ count: sql<number>`COUNT(*)` }).from(companyProducts).where(scopeWhere(space));
+  const [{ count }] = await conn.select({ count: sql<number>`COUNT(*)::int` }).from(companyProducts).where(scopeWhere(space));
   const config = values.config ?? templateByKey(values.template).config;
   const [result] = await conn.insert(companyProducts).values({
     companyId: space.kind === "company" ? space.companyId : null,
     ownerOpenId: space.kind === "personal" ? space.ownerOpenId : null,
     name: values.name, template: values.template, color: values.color, config: JSON.stringify(config), sortOrder: Number(count),
-  }).$returningId();
+  }).returning({ id: companyProducts.id });
   return result.id;
 }
 
@@ -75,7 +75,7 @@ export async function deleteProduct(space: Workspace, id: number) {
 
 /** Records per stage of a product: stages in use cannot be removed or change kind. */
 export async function stageUsage(productId: number) {
-  const rows = await (await db()).select({ stage: clientRecords.stage, count: sql<number>`COUNT(*)` }).from(clientRecords)
+  const rows = await (await db()).select({ stage: clientRecords.stage, count: sql<number>`COUNT(*)::int` }).from(clientRecords)
     .where(eq(clientRecords.productId, productId)).groupBy(clientRecords.stage);
   return new Map(rows.map((row) => [row.stage, Number(row.count)]));
 }
@@ -90,8 +90,8 @@ export async function productIdsOfOwners(ownerOpenIds: string[]) {
 export async function productUsage(productId: number) {
   const conn = await db();
   const [[records], [agencyRows]] = await Promise.all([
-    conn.select({ count: sql<number>`COUNT(*)` }).from(clientRecords).where(eq(clientRecords.productId, productId)),
-    conn.select({ count: sql<number>`COUNT(*)` }).from(agencies).where(eq(agencies.productId, productId)),
+    conn.select({ count: sql<number>`COUNT(*)::int` }).from(clientRecords).where(eq(clientRecords.productId, productId)),
+    conn.select({ count: sql<number>`COUNT(*)::int` }).from(agencies).where(eq(agencies.productId, productId)),
   ]);
   return { records: Number(records.count), agencies: Number(agencyRows.count) };
 }
@@ -132,8 +132,8 @@ export async function getPrefs(space: Workspace): Promise<WorkspacePrefs> {
 export async function savePrefs(space: Workspace, prefs: WorkspacePrefs) {
   const conn = await db();
   const value = JSON.stringify(prefs);
-  if (space.kind === "company") await conn.insert(companySettings).values({ companyId: space.companyId, prefs: value }).onDuplicateKeyUpdate({ set: { prefs: value } });
-  else await conn.insert(userSettings).values({ ownerOpenId: space.ownerOpenId, prefs: value }).onDuplicateKeyUpdate({ set: { prefs: value } });
+  if (space.kind === "company") await conn.insert(companySettings).values({ companyId: space.companyId, prefs: value }).onConflictDoUpdate({ target: companySettings.companyId, set: { prefs: value } });
+  else await conn.insert(userSettings).values({ ownerOpenId: space.ownerOpenId, prefs: value }).onConflictDoUpdate({ target: userSettings.ownerOpenId, set: { prefs: value } });
 }
 
 // ---------- Clientes cadastrados ----------
@@ -149,7 +149,7 @@ export async function listCustomers(ownerOpenIds: string[]) {
     .where(inArray(customers.ownerOpenId, ownerOpenIds)).orderBy(asc(customers.name));
   const rows = joined.map(({ customer, ownerUserName, ownerDisplayName }) => ({ ...customer, ownerName: ownerDisplayName || ownerUserName || "Sem nome" }));
   const counts = rows.length
-    ? await conn.select({ customerId: clientRecords.customerId, count: sql<number>`COUNT(*)` }).from(clientRecords)
+    ? await conn.select({ customerId: clientRecords.customerId, count: sql<number>`COUNT(*)::int` }).from(clientRecords)
       .where(inArray(clientRecords.customerId, rows.map((row) => row.id))).groupBy(clientRecords.customerId)
     : [];
   return rows.map((row) => ({ ...row, dealCount: Number(counts.find((item) => item.customerId === row.id)?.count ?? 0) }));
@@ -161,7 +161,7 @@ export async function getCustomer(id: number) {
 }
 
 export async function createCustomer(ownerOpenId: string, values: CustomerValues) {
-  const [result] = await (await db()).insert(customers).values({ ...values, ownerOpenId }).$returningId();
+  const [result] = await (await db()).insert(customers).values({ ...values, ownerOpenId }).returning({ id: customers.id });
   return result.id;
 }
 

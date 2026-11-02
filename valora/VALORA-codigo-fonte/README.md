@@ -1,7 +1,7 @@
 # VALORA — Pipeline de vendas
 
 Aplicação web para registrar atendimentos, acompanhar o pipeline de vendas, metas e retornos — para qualquer tipo de produto ou serviço (crédito, imóveis, seguros, veículos, serviços, cursos…), com o pipeline e o vocabulário que a empresa escolher.
-Roda de forma independente: só precisa de Node.js e de um banco MySQL/MariaDB. Não depende do Manus nem de nenhum serviço externo.
+Roda de forma independente: só precisa de Node.js e de um banco PostgreSQL. Não depende do Manus nem de nenhum serviço externo.
 
 ## Estrutura
 
@@ -16,11 +16,17 @@ Roda de forma independente: só precisa de Node.js e de um banco MySQL/MariaDB. 
 
 - Node.js 22 ou mais recente.
 - pnpm 10 (`npm install -g pnpm` ou `corepack enable`).
-- MySQL 8 ou MariaDB 10.6+.
+- PostgreSQL 16 ou mais recente (em desenvolvimento usamos o PostgreSQL 18 no Docker Desktop).
 
 ## Primeira instalação
 
-1. Crie um banco de dados vazio, por exemplo `valora`.
+1. Crie um banco de dados vazio, por exemplo `valora`. Com o Docker Desktop:
+
+   ```bash
+   docker run -d --name valora-postgres18 --restart unless-stopped -e POSTGRES_USER=valora -e POSTGRES_PASSWORD=troque-esta-senha -e POSTGRES_DB=valora -p 127.0.0.1:5432:5432 -v valora-pg18-data:/var/lib/postgresql postgres:18
+   ```
+
+   Neste computador o contêiner já existe; `iniciar-banco.ps1` liga o Docker e o banco.
 2. Copie `.env.example` para `.env` e preencha `DATABASE_URL` e `JWT_SECRET`. **Não publique nem compartilhe o `.env`.**
 3. Instale as dependências e crie as tabelas:
 
@@ -161,6 +167,13 @@ Qualquer pessoa pode usar **Relatar erro** (menu da conta, ou "Relatar um proble
 - **Atendimentos:** os blocos do topo mostram **Esperando retorno** (em andamento), **Retorno com sucesso** (venda concluída), **Retorno falho** (não concluiu em venda) e **Deve retornar de novo** (cliente indeciso: objeção "Vai pensar" ou "Retornar em outro momento"). Clicar num bloco filtra a lista.
 - **Lembrete de ligação (3 dias, ajustável em Personalizar):** quando um cliente seu está em andamento ou indeciso, sem data de próximo contato, e o último contato foi há 3 dias ou mais, aparece o aviso "Opa, não esqueça de ligar para Fulano!". Ele surge ao abrir o app e fica no sino do topo. "Abrir ficha" leva à página do cliente (o link `/?atendimento=ID` também pode ser copiado). "Lembrar em 3 dias" adia o aviso, e marcar uma data de próximo contato o encerra.
 - **Ver como (super administrador):** em **Usuários**, o botão **Ver como** abre o app exatamente como aquela pessoa enxerga (administrador, gerente, líder ou usuário), somente para leitura. Uma faixa no topo mostra quem está sendo visto e tem o botão para voltar. O servidor recusa qualquer alteração nesse modo e ignora o pedido vindo de quem não é super administrador.
+
+### Vindo do MariaDB/MySQL
+
+Até a versão de novembro de 2026 o VALORA usava MariaDB/MySQL. As migrações antigas ficam em `drizzle/legacy-mysql/` só como histórico. Para levar os dados de um banco antigo para o PostgreSQL:
+
+1. No `.env`, deixe `DATABASE_URL` apontando para o PostgreSQL e coloque o banco antigo em `MARIADB_URL` (ex.: `mysql://usuario:senha@127.0.0.1:3306/valora`).
+2. Rode `pnpm db:migrate` (cria as tabelas no PostgreSQL) e depois `pnpm banco:copiar`. O script copia todas as tabelas com os mesmos ids e datas e não altera o banco antigo. Se o PostgreSQL já tiver dados, use `pnpm banco:copiar --substituir`.
 
 ### Migrando dados da versão Manus
 

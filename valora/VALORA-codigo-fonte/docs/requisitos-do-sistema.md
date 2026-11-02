@@ -197,7 +197,7 @@ O código-fonte entregue não contém credenciais, banco de dados, cadastros de 
 
 - **Front-end:** React 19, TypeScript, Vite, Tailwind CSS, componentes Radix UI, React Query/tRPC e Recharts.
 - **Back-end:** Node.js, Express e tRPC.
-- **Banco:** MySQL compatível, Drizzle ORM e migrações SQL no diretório `drizzle/`.
+- **Banco:** PostgreSQL (16 ou mais recente; em desenvolvimento, PostgreSQL 18 no Docker), Drizzle ORM e migrações SQL no diretório `drizzle/`. As migrações da época do MySQL ficam em `drizzle/legacy-mysql/`.
 - **Autenticação:** login próprio com e-mail + senha (scrypt), sessão JWT em cookie HTTP-only e operações protegidas.
 - **Validação/testes:** Zod, TypeScript e Vitest.
 
@@ -210,4 +210,4 @@ O código-fonte entregue não contém credenciais, banco de dados, cadastros de 
 
 ## 8. Execução local do código entregue
 
-Consulte `README.md` dentro do ZIP. Em linhas gerais, é necessário instalar Node.js e pnpm, criar um banco MySQL/MariaDB vazio, preencher o `.env` sem compartilhá-lo, instalar dependências, aplicar as migrações, criar o primeiro usuário com `pnpm usuarios criar` e iniciar o servidor.
+Consulte `README.md` dentro do ZIP. Em linhas gerais, é necessário instalar Node.js e pnpm, criar um banco PostgreSQL vazio, preencher o `.env` sem compartilhá-lo, instalar dependências, aplicar as migrações, criar o primeiro usuário com `pnpm usuarios criar` e iniciar o servidor.
