@@ -8,7 +8,12 @@ param(
   [string]$InstanceId = "i-09b83e8513a37faa4"
 )
 $ErrorActionPreference = "Continue"
-$env:AWS_PROFILE = $Profile
+# GitHub Actions already has OIDC credentials. A named profile does not exist on the runner.
+if ($env:GITHUB_ACTIONS -eq "true") {
+  Remove-Item Env:AWS_PROFILE -ErrorAction SilentlyContinue
+} else {
+  $env:AWS_PROFILE = $Profile
+}
 $env:AWS_REGION = $Region
 # The AWS CLI prints the remote output; without UTF-8 it fails on non-ASCII characters.
 $env:PYTHONIOENCODING = "utf-8"
@@ -23,8 +28,13 @@ $image = "$registry/valora:$tag"
 Write-Host "Build $image ..." -ForegroundColor Cyan
 docker build --platform linux/amd64 -t $image $app
 if ($LASTEXITCODE -ne 0) { throw "docker build falhou" }
-# Piped through cmd: Windows PowerShell 5.1 re-encodes piped text and ECR rejects the token.
-cmd /c "aws ecr get-login-password --region $Region | docker login --username AWS --password-stdin $registry" | Out-Null
+# Windows PowerShell 5.1 re-encodes a pipe and ECR rejects the token. PowerShell 7 (the runner) does not.
+if ($PSVersionTable.PSVersion.Major -lt 6) {
+  cmd /c "aws ecr get-login-password --region $Region | docker login --username AWS --password-stdin $registry" | Out-Null
+} else {
+  aws ecr get-login-password --region $Region | docker login --username AWS --password-stdin $registry
+}
+if ($LASTEXITCODE -ne 0) { throw "docker login falhou" }
 docker push $image
 if ($LASTEXITCODE -ne 0) { throw "docker push falhou" }
 

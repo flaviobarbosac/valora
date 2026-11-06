@@ -21,6 +21,14 @@ O VALORA roda na mesma EC2 e no mesmo RDS do Clampfy, **sem alterar nada do Clam
 
 ## Publicar uma nova versão
 
+1. No computador, envie para a `develop` remota. Isso não publica.
+2. Abra um PR da `develop` para a `main` e faça o merge.
+3. O merge publica em produção. O GitHub Actions chama o mesmo `deploy.ps1`.
+
+Não há ambiente de desenvolvimento. A role `valora-github-actions` só aceita a `main`; o segredo `AWS_GITHUB_ACTIONS_ROLE_ARN` aponta para ela. Os dois saem do `provision.ps1`.
+
+Na mão:
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File infra\aws\deploy.ps1
 ```

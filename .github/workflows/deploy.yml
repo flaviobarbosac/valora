@@ -1,0 +1,31 @@
+name: Deploy production
+
+# A merge into main is a push. develop never matches this event, and the AWS
+# role only trusts refs/heads/main, so a develop push cannot publish.
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: valora-production
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: sa-east-1
+
+      - name: Publicar
+        shell: pwsh
+        run: ./infra/aws/deploy.ps1

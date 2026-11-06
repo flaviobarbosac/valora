@@ -10,6 +10,9 @@ VALORA_IMAGE="$1"
 
 mkdir -p "$DIR"
 cd "$DIR"
+# Pin the compose project so this deploy cannot select or remove Clampfy containers.
+export COMPOSE_PROJECT_NAME=valora
+export COMPOSE_FILE="$DIR/docker-compose.yml"
 
 SECRET=$(aws secretsmanager get-secret-value --secret-id "$SECRET_ID" --query SecretString --output text --region "$AWS_REGION")
 umask 077

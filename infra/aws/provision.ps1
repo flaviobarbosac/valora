@@ -7,7 +7,9 @@
 param(
   [string]$Profile = "clampfy-dev",
   [string]$Region = "sa-east-1",
-  [string]$Ec2RoleArn = "arn:aws:iam::635198174869:role/clampfy-dev-ec2-role"
+  [string]$Ec2RoleArn = "arn:aws:iam::635198174869:role/clampfy-dev-ec2-role",
+  [string]$InstanceId = "i-09b83e8513a37faa4",
+  [string]$GitHubRepo = "flaviobarbosac/valora"
 )
 # "Continue": the existence checks below rely on the AWS CLI exit code, and Windows
 # PowerShell 5.1 would turn their expected "not found" stderr into a fatal error.
@@ -50,4 +52,76 @@ Write-Utf8 $policy (@{
 } | ConvertTo-Json -Depth 6)
 aws secretsmanager put-resource-policy --secret-id valora/prod --resource-policy "file://$($policy -replace '\\','/')" --block-public-policy | Out-Null
 Remove-Item $policy, $lifecycle
-Write-Host "Pronto: ECR valora e segredo valora/prod."
+
+# Deploy from GitHub Actions on push to main. Trusts only that ref.
+# Reuses the OIDC provider Clampfy already created; the Clampfy role is not edited.
+$account = aws sts get-caller-identity --query Account --output text
+$oidcArn = "arn:aws:iam::${account}:oidc-provider/token.actions.githubusercontent.com"
+$roleName = "valora-github-actions"
+$trust = Join-Path $env:TEMP "valora-github-trust.json"
+Write-Utf8 $trust (@{
+  Version = "2012-10-17"
+  Statement = @(@{
+    Effect = "Allow"
+    Principal = @{ Federated = $oidcArn }
+    Action = "sts:AssumeRoleWithWebIdentity"
+    Condition = @{
+      StringEquals = @{
+        "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+        "token.actions.githubusercontent.com:sub" = "repo:${GitHubRepo}:ref:refs/heads/main"
+      }
+    }
+  })
+} | ConvertTo-Json -Depth 8)
+$trustPath = "file://$($trust -replace '\\','/')"
+aws iam get-role --role-name $roleName *> $null
+if ($LASTEXITCODE -ne 0) {
+  aws iam create-role --role-name $roleName --assume-role-policy-document $trustPath `
+    --description "VALORA deploy from GitHub Actions on main" --tags $tags | Out-Null
+  Write-Host "Role $roleName criada."
+} else {
+  aws iam update-assume-role-policy --role-name $roleName --policy-document $trustPath | Out-Null
+}
+$deployPolicy = Join-Path $env:TEMP "valora-github-deploy.json"
+Write-Utf8 $deployPolicy (@{
+  Version = "2012-10-17"
+  Statement = @(
+    @{
+      Effect = "Allow"
+      Action = "ecr:GetAuthorizationToken"
+      Resource = "*"
+    },
+    @{
+      Effect = "Allow"
+      Action = @(
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:CompleteLayerUpload",
+        "ecr:InitiateLayerUpload",
+        "ecr:PutImage",
+        "ecr:UploadLayerPart"
+      )
+      Resource = "arn:aws:ecr:${Region}:${account}:repository/valora"
+    },
+    @{
+      Effect = "Allow"
+      Action = "ssm:SendCommand"
+      Resource = @(
+        "arn:aws:ec2:${Region}:${account}:instance/${InstanceId}",
+        "arn:aws:ssm:${Region}::document/AWS-RunShellScript",
+        "arn:aws:ssm:${Region}:${account}:document/AWS-RunShellScript"
+      )
+    },
+    @{
+      Effect = "Allow"
+      Action = @("ssm:GetCommandInvocation", "ssm:ListCommandInvocations")
+      Resource = "*"
+    }
+  )
+} | ConvertTo-Json -Depth 8)
+aws iam put-role-policy --role-name $roleName --policy-name valora-deploy `
+  --policy-document "file://$($deployPolicy -replace '\\','/')" | Out-Null
+$roleArn = aws iam get-role --role-name $roleName --query Role.Arn --output text
+Remove-Item $trust, $deployPolicy
+Write-Host "Pronto: ECR valora, segredo valora/prod e role $roleArn."
+Write-Host "Segredo do repositório: AWS_GITHUB_ACTIONS_ROLE_ARN=$roleArn"
