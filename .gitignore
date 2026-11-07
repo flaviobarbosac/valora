@@ -4,6 +4,8 @@
 !.env.example
 conta-teste.txt
 super-admin.txt
+super-admin-2.txt
+conta-usada.txt
 contas-demo.txt
 
 # Banco de dados MariaDB local (dados reais de clientes)
