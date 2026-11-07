@@ -50,7 +50,7 @@ $commands = @(
   "chmod 700 /opt/valora/remote-deploy.sh",
   "AWS_REGION=$Region /opt/valora/remote-deploy.sh $image"
 )
-$params = Join-Path $env:TEMP "valora-deploy-ssm.json"
+$params = Join-Path ([IO.Path]::GetTempPath()) "valora-deploy-ssm.json"
 [IO.File]::WriteAllText($params, (@{ commands = $commands } | ConvertTo-Json -Compress), (New-Object System.Text.UTF8Encoding($false)))
 $cid = aws ssm send-command --instance-ids $InstanceId --document-name AWS-RunShellScript --timeout-seconds 900 `
   --comment "valora deploy $tag" --parameters "file://$($params -replace '\\','/')" --query Command.CommandId --output text
