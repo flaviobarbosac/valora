@@ -12,9 +12,11 @@
     "test": "vitest run",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "db:migrate": "drizzle-kit migrate",
+    "db:migrate:schema": "tsx server/scripts/migrar.ts",
     "usuarios": "tsx server/scripts/usuarios.ts",
     "email:teste": "tsx server/scripts/testarEmail.ts",
-    "demo": "tsx server/scripts/demo.ts"
+    "demo": "tsx server/scripts/demo.ts",
+    "banco:copiar": "tsx server/scripts/copiarDoMariaDb.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
@@ -68,6 +70,7 @@
     "nanoid": "^5.1.5",
     "next-themes": "^0.4.6",
     "nodemailer": "7.0.9",
+    "pg": "^8.23.1",
     "react": "^19.2.1",
     "react-day-picker": "^9.11.1",
     "react-dom": "^19.2.1",
@@ -91,6 +94,7 @@
     "@types/google.maps": "^3.58.1",
     "@types/node": "^24.7.0",
     "@types/nodemailer": "7.0.2",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.2.1",
     "@types/react-dom": "^19.2.1",
     "@vitejs/plugin-react": "^5.0.4",

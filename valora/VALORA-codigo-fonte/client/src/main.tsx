@@ -10,6 +10,7 @@ import { installErrorLog } from "./lib/errorLog";
 
 installErrorLog();
 import "./index.css";
+import "./styles-workspace.css";
 
 const queryClient = new QueryClient();
 

@@ -7,14 +7,18 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 
 type AskTextOptions = { title: string; label?: string; description?: string; initialValue?: string; confirmLabel?: string; minLength?: number; maxLength?: number };
 type ConfirmOptions = { title: string; description?: string; confirmLabel?: string; danger?: boolean };
+type AskChoiceOptions = { title: string; label?: string; description?: string; confirmLabel?: string; options: { value: string; label: string }[] };
 
 type Request =
   | ({ kind: "text"; resolve: (value: string | null) => void } & AskTextOptions)
+  | ({ kind: "choice"; resolve: (value: string | null) => void } & AskChoiceOptions)
   | ({ kind: "confirm"; resolve: (value: boolean) => void } & ConfirmOptions);
 
 type Api = {
   /** Resolves to the trimmed text, or null when cancelled. */
   askText: (options: AskTextOptions) => Promise<string | null>;
+  /** Resolves to the chosen option's value, or null when cancelled. */
+  askChoice: (options: AskChoiceOptions) => Promise<string | null>;
   /** Resolves to true only when the person confirms. */
   confirm: (options: ConfirmOptions) => Promise<boolean>;
 };
@@ -41,15 +45,16 @@ export function AppDialogProvider({ children }: { children: ReactNode }) {
     pending.current = null;
     setVisible(false);
     if (!current) return;
-    if (current.kind === "text") current.resolve(typeof result === "string" ? result : null);
+    if (current.kind !== "confirm") current.resolve(typeof result === "string" ? result : null);
     else current.resolve(result === true);
   }, []);
 
   const open = useCallback((next: Request) => {
     // A newer dialog cancels an older one that was still open.
-    if (pending.current) finish(pending.current.kind === "text" ? null : false);
+    if (pending.current) finish(pending.current.kind === "confirm" ? false : null);
     pending.current = next;
     setText(next.kind === "text" ? next.initialValue ?? "" : "");
+    if (next.kind === "choice") setText("");
     setError("");
     setRequest(next);
     setVisible(true);
@@ -57,6 +62,7 @@ export function AppDialogProvider({ children }: { children: ReactNode }) {
 
   const api: Api = {
     askText: (options) => new Promise((resolve) => open({ kind: "text", resolve, ...options })),
+    askChoice: (options) => new Promise((resolve) => open({ kind: "choice", resolve, ...options })),
     confirm: (options) => new Promise((resolve) => open({ kind: "confirm", resolve, ...options })),
   };
 
@@ -64,6 +70,7 @@ export function AppDialogProvider({ children }: { children: ReactNode }) {
     event.preventDefault();
     if (!request || !visible) return;
     if (request.kind === "confirm") { finish(true); return; }
+    if (request.kind === "choice") { if (!text) { setError("Escolha uma opção."); return; } finish(text); return; }
     const value = text.trim();
     const min = request.minLength ?? 1;
     if (value.length < min) { setError(min > 1 ? `Use pelo menos ${min} caracteres.` : "Preencha este campo."); return; }
@@ -75,20 +82,23 @@ export function AppDialogProvider({ children }: { children: ReactNode }) {
   return (
     <AppDialogContext.Provider value={api}>
       {children}
-      <Dialog open={visible} onOpenChange={(isOpen) => { if (!isOpen && visible) finish(request?.kind === "text" ? null : false); }}>
+      <Dialog open={visible} onOpenChange={(isOpen) => { if (!isOpen && visible) finish(request?.kind === "confirm" ? false : null); }}>
         <DialogContent className="client-dialog app-dialog">
           <DialogHeader className="dialog-heading">
-            <div className={`dialog-icon ${danger ? "dialog-icon-danger" : ""}`}>{request?.kind === "text" ? <Pencil size={18} /> : <TriangleAlert size={18} />}</div>
+            <div className={`dialog-icon ${danger ? "dialog-icon-danger" : ""}`}>{request?.kind === "confirm" ? <TriangleAlert size={18} /> : <Pencil size={18} />}</div>
             <div><DialogTitle>{request?.title}</DialogTitle>{request?.description ? <DialogDescription>{request.description}</DialogDescription> : <DialogDescription className="sr-only">{request?.title}</DialogDescription>}</div>
           </DialogHeader>
           <form className="client-form" onSubmit={submit}>
             {request?.kind === "text" && (
               <label className="field"><span>{request.label ?? "Nome"}</span><input autoFocus value={text} maxLength={request.maxLength ?? 120} onChange={(event) => { setText(event.target.value); setError(""); }} onFocus={(event) => event.target.select()} /></label>
             )}
+            {request?.kind === "choice" && (
+              <label className="field"><span>{request.label ?? "Escolha"}</span><select autoFocus value={text} onChange={(event) => { setText(event.target.value); setError(""); }}><option value="">Selecione…</option>{request.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+            )}
             {error && <div className="form-error" role="alert">{error}</div>}
             <div className="form-actions">
-              <button type="button" className="button button-ghost" onClick={() => finish(request?.kind === "text" ? null : false)}>Cancelar</button>
-              <button type="submit" className={`button ${danger ? "button-danger" : "button-primary"}`} autoFocus={request?.kind === "confirm"}>{request?.confirmLabel ?? (request?.kind === "text" ? "Salvar" : "Confirmar")}</button>
+              <button type="button" className="button button-ghost" onClick={() => finish(request?.kind === "confirm" ? false : null)}>Cancelar</button>
+              <button type="submit" className={`button ${danger ? "button-danger" : "button-primary"}`} autoFocus={request?.kind === "confirm"}>{request?.confirmLabel ?? (request?.kind === "confirm" ? "Confirmar" : "Salvar")}</button>
             </div>
           </form>
         </DialogContent>

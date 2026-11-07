@@ -1,7 +1,7 @@
-# VALORA — Pipeline Bancário
+# VALORA — Pipeline de vendas
 
-Aplicação web para registrar atendimentos, acompanhar oportunidades de empréstimo, metas e retornos.
-Roda de forma independente: só precisa de Node.js e de um banco MySQL/MariaDB. Não depende do Manus nem de nenhum serviço externo.
+Aplicação web para registrar atendimentos, acompanhar o pipeline de vendas, metas e retornos — para qualquer tipo de produto ou serviço (crédito, imóveis, seguros, veículos, serviços, cursos…), com o pipeline e o vocabulário que a empresa escolher.
+Roda de forma independente: só precisa de Node.js e de um banco PostgreSQL. Não depende do Manus nem de nenhum serviço externo.
 
 ## Estrutura
 
@@ -16,11 +16,17 @@ Roda de forma independente: só precisa de Node.js e de um banco MySQL/MariaDB. 
 
 - Node.js 22 ou mais recente.
 - pnpm 10 (`npm install -g pnpm` ou `corepack enable`).
-- MySQL 8 ou MariaDB 10.6+.
+- PostgreSQL 16 ou mais recente (em desenvolvimento usamos o PostgreSQL 18 no Docker Desktop).
 
 ## Primeira instalação
 
-1. Crie um banco de dados vazio, por exemplo `valora`.
+1. Crie um banco de dados vazio, por exemplo `valora`. Com o Docker Desktop:
+
+   ```bash
+   docker run -d --name valora-postgres18 --restart unless-stopped -e POSTGRES_USER=valora -e POSTGRES_PASSWORD=troque-esta-senha -e POSTGRES_DB=valora -p 127.0.0.1:5432:5432 -v valora-pg18-data:/var/lib/postgresql postgres:18
+   ```
+
+   Neste computador o contêiner já existe; `iniciar-banco.ps1` liga o Docker e o banco.
 2. Copie `.env.example` para `.env` e preencha `DATABASE_URL` e `JWT_SECRET`. **Não publique nem compartilhe o `.env`.**
 3. Instale as dependências e crie as tabelas:
 
@@ -56,6 +62,7 @@ Cada pessoa entra com **e-mail** e **senha**. O cadastro pede só nome, e-mail e
 - Após 5 senhas erradas seguidas, a conta fica bloqueada por 15 minutos.
 - O avatar no canto superior direito abre o **menu da conta**: Perfil e metas, Mudar senha, Sair da conta e Excluir conta.
 - Trocar a senha encerra as sessões abertas em outros aparelhos.
+- **Esqueci minha senha** (na tela de entrada e na de convite): a pessoa informa o e-mail e recebe um código de 6 dígitos (vale 15 minutos, até 5 tentativas). Com o código, ela cria uma senha nova e já entra. As sessões em outros aparelhos são encerradas. A resposta é a mesma para e-mails que não existem, e um código de cadastro não serve para trocar senha.
 - **Excluir conta** pede a senha e uma confirmação, e apaga de forma permanente o usuário, os atendimentos, as metas e o perfil dele.
 
 ## Empresas, equipes e perfis
@@ -115,13 +122,35 @@ O comando cria o **Banco Exemplo S.A.**: 2 agências, 3 equipes, cargos, uma con
 - **Promoções:** o líder pede em **Minha equipe › Funcionários › Pedir promoção** (novo cargo, motivo e aumento proposto). O pedido vai para o **gerente da agência**, que aprova ou recusa, e depois para a **administração**, que dá a palavra final. Ao aprovar, o cargo e o nível de acesso mudam na hora. Pedidos de gerentes vão direto para a administração. Cada etapa avisa quem precisa agir.
 - **Avisos:** cobranças, avaliações, respostas, promoções e relatos chegam no sino do topo.
 
+## Produtos e pipelines
+
+O VALORA não é mais só bancário: cada empresa cadastra **o que vende** e cada produto tem o **seu próprio pipeline**.
+
+- **Produtos:** em **Personalizar › Produtos e pipelines**, o administrador cria produtos a partir de um modelo pronto — *Vendas em geral*, *Crédito bancário*, *Imóveis*, *Seguros*, *Veículos*, *Serviços e consultoria* ou *Educação e cursos* — e ajusta tudo: nome, cor, etapas, campos, motivos de não fechar e catálogo.
+- **Etapas:** nome, cor, ordem e tipo (*Em andamento*, *Fechou*, *Não fechou* ou *Caso técnico*). A primeira etapa recebe os atendimentos novos; uma etapa de "Fechou" marca a venda; "Não fechou" pede o motivo. Etapas com atendimentos não podem ser excluídas nem mudar de tipo.
+- **Campos do atendimento:** texto, número, valor (R$), data, lista de opções, sim/não ou telefone; podem ser obrigatórios e aparecer no cartão do pipeline.
+- **Agências:** ao criar uma agência (em **Minha empresa**), o administrador escolhe o produto que ela vende. Dá para trocar depois: os atendimentos novos passam a usar o pipeline novo, e os antigos continuam no produto deles (o pipeline mostra uma aba por produto).
+- **Ao criar a empresa**, o dono escolhe o que ela vende, e a empresa já começa com esse produto.
+- **Quem trabalha sozinho** também escolhe e ajusta o próprio pipeline em **Personalizar**, pode ter vários produtos e escolhe o produto em cada atendimento novo.
+- Os atendimentos de antes desta versão foram migrados para o produto **Crédito bancário**, com os campos de limite, cliente do banco, interesse sem limite e classe do produto.
+
+## Clientes cadastrados (cartão postal)
+
+- No **Pipeline**, clicar num cliente abre a **ficha em formato de cartão postal**: de um lado o atendimento (etapa, datas, item vendido, motivo, campos do produto e observação), do outro o "endereço" (nome, endereço, cidade, CEP, telefone, e-mail, documento e nascimento), com selo e carimbo.
+- **Cadastrar cliente** no cartão cria o cadastro já com o nome e o contato do atendimento e liga os dois. **Editar atendimento** abre a ficha completa (com cobranças e avaliações).
+- No menu, **Clientes cadastrados** mostra o mural de cartões, com busca. Cada cartão mostra os atendimentos do cliente e permite registrar um atendimento novo para ele.
+- Líderes e gerentes veem os cadastros das pessoas abaixo deles; só quem cadastrou altera.
+
 ## Personalizar (dono da empresa)
 
 Em **Personalizar**, o administrador define:
+- **produtos e pipelines** (veja acima);
+- **vocabulário**: as palavras do negócio no lugar de Cliente, Atendimento e Venda (ex.: Paciente, Consulta, Matrícula), com o gênero certo ("Nova consulta");
+- **campos extras do cadastro de clientes** (ex.: convênio, renda, profissão);
+- **lembrete de ligar** depois de quantos dias sem retorno marcado (0 desliga), se as **metas mensais** aparecem e a **frase do menu lateral**;
 - **nome exibido e logo** no topo (no lugar da marca VALORA);
 - **cores do app**: modelos prontos ou escolha livre, com prévia na hora; valem para todos da empresa;
 - **nomes dos perfis** (ex.: "Líder de grupo" → "Supervisor");
-- **nomes das etapas** do pipeline;
 - **cargos** (ex.: Atendente, Consultor Sênior, Supervisor), cada um com um nível de acesso. O cargo de cada pessoa é escolhido em Minha empresa ou por promoção.
 
 ## Relatar erro
@@ -132,12 +161,19 @@ Qualquer pessoa pode usar **Relatar erro** (menu da conta, ou "Relatar um proble
 
 - **Cada cargo vê só o que precisa:** veja a tabela de perfis acima. Administradores e gerentes começam na tela da agência; os demais, na visão geral.
 - **Menu:** a barra lateral fica escondida. Ela abre pelo botão **Menu** (três barrinhas) no canto superior direito e fecha ao escolher uma seção, ao clicar fora ou com Esc.
-- **Pipeline:** arraste os cartões com o mouse de uma etapa para outra. Ao pegar um cartão, as etapas permitidas ficam destacadas e as impossíveis aparecem apagadas (por exemplo, "Venda realizada" só aceita quem teve a venda marcada como fechada na ficha).
+- **Pipeline:** arraste os cartões com o mouse de uma etapa para outra; clique num cartão para abrir o cartão postal do cliente. Levar para uma etapa de "Não fechou" pede o motivo na hora. Quando há atendimentos de mais de um produto, abas no topo trocam o pipeline.
 - **Caso técnico:** etapa para atendimentos em andamento que precisam da gerência. Ao mover um cliente para ela, os gerentes da agência de quem atendeu passam a poder editar o caso e movê-lo de etapa. Quem atendeu continua acompanhando e também pode editar. Quando o caso sai dessa etapa, o gerente volta a só visualizar. O painel de agências conta os casos técnicos em aberto.
 - **Painel de agências:** escolha o mês e veja, por agência, cada funcionário com perfil, equipe, clientes atendidos e vendas comparados com a meta, a conversão e os casos técnicos. Só números: nenhum nome, contato ou detalhe de cliente aparece.
 - **Atendimentos:** os blocos do topo mostram **Esperando retorno** (em andamento), **Retorno com sucesso** (venda concluída), **Retorno falho** (não concluiu em venda) e **Deve retornar de novo** (cliente indeciso: objeção "Vai pensar" ou "Retornar em outro momento"). Clicar num bloco filtra a lista.
-- **Lembrete de 3 dias:** quando um cliente seu está em andamento ou indeciso, sem data de próximo contato, e o último contato foi há 3 dias ou mais, aparece o aviso "Opa, não esqueça de ligar para Fulano!". Ele surge ao abrir o app e fica no sino do topo. "Abrir ficha" leva à página do cliente (o link `/?atendimento=ID` também pode ser copiado). "Lembrar em 3 dias" adia o aviso, e marcar uma data de próximo contato o encerra.
+- **Lembrete de ligação (3 dias, ajustável em Personalizar):** quando um cliente seu está em andamento ou indeciso, sem data de próximo contato, e o último contato foi há 3 dias ou mais, aparece o aviso "Opa, não esqueça de ligar para Fulano!". Ele surge ao abrir o app e fica no sino do topo. "Abrir ficha" leva à página do cliente (o link `/?atendimento=ID` também pode ser copiado). "Lembrar em 3 dias" adia o aviso, e marcar uma data de próximo contato o encerra.
 - **Ver como (super administrador):** em **Usuários**, o botão **Ver como** abre o app exatamente como aquela pessoa enxerga (administrador, gerente, líder ou usuário), somente para leitura. Uma faixa no topo mostra quem está sendo visto e tem o botão para voltar. O servidor recusa qualquer alteração nesse modo e ignora o pedido vindo de quem não é super administrador.
+
+### Vindo do MariaDB/MySQL
+
+Até a versão de novembro de 2026 o VALORA usava MariaDB/MySQL. As migrações antigas ficam em `drizzle/legacy-mysql/` só como histórico. Para levar os dados de um banco antigo para o PostgreSQL:
+
+1. No `.env`, deixe `DATABASE_URL` apontando para o PostgreSQL e coloque o banco antigo em `MARIADB_URL` (ex.: `mysql://usuario:senha@127.0.0.1:3306/valora`).
+2. Rode `pnpm db:migrate` (cria as tabelas no PostgreSQL) e depois `pnpm banco:copiar`. O script copia todas as tabelas com os mesmos ids e datas e não altera o banco antigo. Se o PostgreSQL já tiver dados, use `pnpm banco:copiar --substituir`.
 
 ### Migrando dados da versão Manus
 

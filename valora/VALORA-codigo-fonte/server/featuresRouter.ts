@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CLIENT_STAGES, COMPANY_ROLES, type CompanyMember, type User } from "../drizzle/schema";
+import { COMPANY_ROLES, type CompanyMember, type User } from "../drizzle/schema";
 import { COMPANY_ROLE_LABELS } from "@shared/const";
 import { getClientRecordById, getUserByOpenId, listUsers } from "./db";
 import * as features from "./featuresDb";
@@ -53,7 +53,6 @@ export const featuresRouter = router({
     primaryColor: colorInput, darkColor: colorInput, accentColor: colorInput,
     logoDataUrl: z.string().max(400_000).nullable(),
     roleLabels: labelMap(COMPANY_ROLES),
-    stageLabels: labelMap(CLIENT_STAGES),
   })).mutation(async ({ ctx, input }) => {
     const me = await requireCompanyAdmin(ctx.user);
     if (!isValidImageDataUrl(input.logoDataUrl)) fail("BAD_REQUEST", "A logo deve ser JPG, PNG ou WebP com até 300 KB.");

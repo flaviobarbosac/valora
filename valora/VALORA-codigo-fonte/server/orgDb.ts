@@ -77,8 +77,8 @@ export async function agencyPerformance(companyId: number, month: string, onlyAg
         conn
           .select({
             owner: clientRecords.ownerOpenId,
-            served: sql<number>`SUM(CASE WHEN ${clientRecords.contactDate} LIKE ${`${month}-%`} THEN 1 ELSE 0 END)`,
-            sold: sql<number>`SUM(CASE WHEN ${clientRecords.contactDate} LIKE ${`${month}-%`} AND ${clientRecords.saleStatus} = 'sold' THEN 1 ELSE 0 END)`,
+            served: sql<number>`SUM(CASE WHEN ${clientRecords.contactDate}::text LIKE ${`${month}-%`} THEN 1 ELSE 0 END)`,
+            sold: sql<number>`SUM(CASE WHEN ${clientRecords.contactDate}::text LIKE ${`${month}-%`} AND ${clientRecords.saleStatus} = 'sold' THEN 1 ELSE 0 END)`,
             technical: sql<number>`SUM(CASE WHEN ${clientRecords.stage} = 'technical' THEN 1 ELSE 0 END)`,
           })
           .from(clientRecords)
@@ -105,7 +105,7 @@ export async function agencyPerformance(companyId: number, month: string, onlyAg
   const teamList = overview.teams.filter((team) => (onlyAgencyId === null || team.agencyId === onlyAgencyId) && (onlyTeamId === null || team.id === onlyTeamId));
   return {
     company: { id: overview.company.id, name: overview.company.name },
-    agencies: agencyList.map(({ id, name }) => ({ id, name })),
+    agencies: agencyList.map(({ id, name, productId }) => ({ id, name, productId })),
     teams: teamList.map(({ id, name, agencyId }) => ({ id, name, agencyId })),
     people,
   };
@@ -159,7 +159,7 @@ export async function listPendingInvitations(companyId: number) {
 export async function createCompanyWithAdmin(openId: string, name: string) {
   const conn = await db();
   return conn.transaction(async (tx) => {
-    const [result] = await tx.insert(companies).values({ name, createdByOpenId: openId }).$returningId();
+    const [result] = await tx.insert(companies).values({ name, createdByOpenId: openId }).returning({ id: companies.id });
     await tx.insert(companyMembers).values({ companyId: result.id, userOpenId: openId, role: "admin" });
     return result.id;
   });
@@ -192,8 +192,12 @@ export async function getTeam(companyId: number, teamId: number) {
   return rows[0];
 }
 
-export async function createAgency(companyId: number, name: string) {
-  await (await db()).insert(agencies).values({ companyId, name });
+export async function createAgency(companyId: number, name: string, productId: number | null = null) {
+  await (await db()).insert(agencies).values({ companyId, name, productId });
+}
+
+export async function setAgencyProduct(companyId: number, agencyId: number, productId: number | null) {
+  await (await db()).update(agencies).set({ productId }).where(and(eq(agencies.id, agencyId), eq(agencies.companyId, companyId)));
 }
 
 export async function renameAgency(companyId: number, agencyId: number, name: string) {
@@ -285,7 +289,7 @@ export async function createInvitation(values: {
     // Only the newest invitation for an e-mail stays valid.
     await tx.update(invitations).set({ revokedAt: new Date() })
       .where(and(eq(invitations.companyId, values.companyId), eq(invitations.email, values.email), isNull(invitations.acceptedAt), isNull(invitations.revokedAt)));
-    const [result] = await tx.insert(invitations).values({ ...rest, ...placement }).$returningId();
+    const [result] = await tx.insert(invitations).values({ ...rest, ...placement }).returning({ id: invitations.id });
     return result.id;
   });
 }

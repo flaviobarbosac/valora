@@ -1,25 +1,26 @@
 import type { ClientRecord } from "@/lib/client-types";
 
-/** Objections that mean "the client is undecided, call again". */
-export const UNDECIDED_OBJECTIONS = ["thinking", "later"] as const;
+/** Reasons that mean "the client is undecided, call again" when the product does not say (see ReasonDef.callback). */
+export const UNDECIDED_OBJECTIONS = ["thinking", "later", "vai_pensar", "retornar"] as const;
+const defaultIsCallback = (key: string) => (UNDECIDED_OBJECTIONS as readonly string[]).includes(key);
 
 export type Outcome = "waiting" | "success" | "failed" | "callback";
 
 export const OUTCOMES: { value: Outcome; label: string; note: string; tone: string }[] = [
   { value: "waiting", label: "Esperando retorno", note: "Atendimentos em andamento", tone: "blue" },
-  { value: "success", label: "Retorno com sucesso", note: "Venda concluída", tone: "teal" },
-  { value: "failed", label: "Retorno falho", note: "Não concluiu em venda", tone: "rose" },
+  { value: "success", label: "Retorno com sucesso", note: "Negócio fechado", tone: "teal" },
+  { value: "failed", label: "Retorno falho", note: "Não fechou", tone: "rose" },
   { value: "callback", label: "Deve retornar de novo", note: "Cliente indeciso (vai pensar)", tone: "amber" },
 ];
 
-export function outcomeOf(record: Pick<ClientRecord, "saleStatus" | "objection">): Outcome {
+export function outcomeOf(record: Pick<ClientRecord, "saleStatus" | "objection">, isCallback: (key: string) => boolean = defaultIsCallback): Outcome {
   if (record.saleStatus === "sold") return "success";
-  if (record.objection && (UNDECIDED_OBJECTIONS as readonly string[]).includes(record.objection)) return "callback";
+  if (record.objection && isCallback(record.objection)) return "callback";
   if (record.saleStatus === "not_sold") return "failed";
   return "waiting";
 }
 
-/** Days without a scheduled call before the app reminds the owner. */
+/** Days without a scheduled call before the app reminds the owner (changeable in Personalizar). */
 export const REMINDER_DAYS = 3;
 
 export function addDaysISO(iso: string, days: number) {
@@ -35,13 +36,13 @@ export function daysBetween(fromISO: string, toISO: string) {
 /**
  * A call reminder is due when one of *my* clients is still open (waiting or
  * undecided), has no next-contact date, and the last contact was at least
- * three days ago — unless "Lembrar depois" pushed it further.
+ * `days` days ago — unless "Lembrar depois" pushed it further. 0 days = off.
  */
-export function needsCallReminder(record: ClientRecord, todayISO: string) {
-  if (!record.isMine || record.followUpDate) return false;
-  const outcome = outcomeOf(record);
+export function needsCallReminder(record: ClientRecord, todayISO: string, days = REMINDER_DAYS, isCallback: (key: string) => boolean = defaultIsCallback) {
+  if (!days || !record.isMine || record.followUpDate) return false;
+  const outcome = outcomeOf(record, isCallback);
   if (outcome !== "waiting" && outcome !== "callback") return false;
-  const dueOn = addDaysISO(record.contactDate, REMINDER_DAYS);
+  const dueOn = addDaysISO(record.contactDate, days);
   const quietUntil = record.remindAfter && record.remindAfter > dueOn ? record.remindAfter : dueOn;
   return todayISO >= quietUntil;
 }

@@ -1,5 +1,6 @@
 import { ArrowUpRight, Target } from "lucide-react";
 import type { GoalSettings } from "@/lib/client-types";
+import { term } from "@/lib/workspace";
 
 type Props = {
   monthLabel: string;
@@ -31,10 +32,10 @@ export default function MonthlyGoals({ monthLabel, contacts, sales, goals, loadi
         <button type="button" className="button button-outline goals-adjust-button" onClick={onEditGoals}><span>Ajustar metas</span><ArrowUpRight size={14} /></button>
       </header>
       {loading ? <div className="goals-loading">Carregando suas metas…</div> : <div className="goal-progress-grid">
-        <GoalProgress title="Atendimentos" actual={contacts} target={goals.monthlyContactTarget} unit="contatos" />
-        <GoalProgress title="Vendas fechadas" actual={sales} target={goals.monthlySaleTarget} unit="vendas" />
+        <GoalProgress title={term("deals")} actual={contacts} target={goals.monthlyContactTarget} unit="contatos" />
+        <GoalProgress title={`${term("sales")} fechadas`} actual={sales} target={goals.monthlySaleTarget} unit={term("sales", true)} />
       </div>}
-      <p className="goals-note">As metas iniciais são 100 atendimentos e 20 vendas. Ajuste os valores para o seu objetivo.</p>
+      <p className="goals-note">As metas iniciais são 100 {term("deals", true)} e 20 {term("sales", true)}. Ajuste os valores para o seu objetivo.</p>
     </section>
   );
 }
