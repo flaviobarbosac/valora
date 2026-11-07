@@ -9,7 +9,8 @@ param(
   [string]$Region = "sa-east-1",
   [string]$Ec2RoleArn = "arn:aws:iam::635198174869:role/clampfy-dev-ec2-role",
   [string]$InstanceId = "i-09b83e8513a37faa4",
-  [string]$GitHubRepo = "flaviobarbosac/valora"
+  # Immutable subject (owner id + repo id). The name-only claim is rejected.
+  [string]$GitHubSubject = "repo:flaviobarbosac@112890739/valora@1423636550:ref:refs/heads/main"
 )
 # "Continue": the existence checks below rely on the AWS CLI exit code, and Windows
 # PowerShell 5.1 would turn their expected "not found" stderr into a fatal error.
@@ -68,7 +69,7 @@ Write-Utf8 $trust (@{
     Condition = @{
       StringEquals = @{
         "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-        "token.actions.githubusercontent.com:sub" = "repo:${GitHubRepo}:ref:refs/heads/main"
+        "token.actions.githubusercontent.com:sub" = $GitHubSubject
       }
     }
   })
